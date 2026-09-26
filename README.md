@@ -27,6 +27,8 @@ Flash flooding turns routine commutes into safety hazards, especially for studen
 
 **Goal:** Make student transportation safer and more predictable by combining AI-powered flood prediction, personalized scheduling, and intelligent route planning.
 
+**Data & GIS:** the road-segment dataset, flood features, road closures and FIU parking data are built and loaded in MongoDB Atlas. See [DATAREADME.md](DATAREADME.md) for what's there and how to use it.
+
 ## Core Features
 
 | Feature | Description |
@@ -49,22 +51,23 @@ Flash flooding turns routine commutes into safety hazards, especially for studen
 | ML | Python (pandas / scikit-learn) |
 | Domain | GoDaddy |
 | Hosting (frontend) | Vercel |
-| Hosting (backend) | *TBD — see [docs/architecture.md](docs/architecture.md#hosting)* |
+| Hosting (backend) | *TBD (to be documented in `docs/architecture.md`, not yet added)* |
 | Auth | Google OAuth 2.0 (Calendar API) |
 | Mapping/Routing | *TBD — see integrations below* |
 | Weather / Elevation / GIS | External APIs — see [Environment Variables](#environment-variables) |
 
-> ⚠️ **Note:** Vercel serverless functions do not natively run a persistent FastAPI app well for this use case. The backend should be deployed separately (Render, Railway, or Fly.io are recommended for same-day setup) and the frontend on Vercel should call that backend URL. See `docs/architecture.md` for the finalized decision.
+> ⚠️ **Note:** Vercel serverless functions do not natively run a persistent FastAPI app well for this use case. The backend should be deployed separately (Render, Railway, or Fly.io are recommended for same-day setup) and the frontend on Vercel should call that backend URL. The finalized decision will go in `docs/architecture.md` (not yet added).
 
 ## Repository Structure
 
 ```
 dryroute/
-├── README.md
-├── .env.example
-├── docker-compose.yml
+├── README.md                  # this file
+├── DATAREADME.md              # data pipeline: datasets, Mongo collections, how to rerun
+├── .env.example               # (planned)
+├── docker-compose.yml         # (planned)
 │
-├── frontend/                  # React + TypeScript app
+├── frontend/                  # (planned) React + TypeScript app
 │   ├── package.json
 │   ├── src/
 │   │   ├── app/
@@ -82,7 +85,7 @@ dryroute/
 │   │   └── types/
 │   └── public/
 │
-├── backend/                   # FastAPI app
+├── backend/                   # (planned) FastAPI app
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py
@@ -108,7 +111,7 @@ dryroute/
 │   │       └── google_calendar.py
 │   └── tests/
 │
-├── ml/                         # Flood-risk model
+├── ml/                         # (planned) Flood-risk model
 │   ├── data/
 │   │   ├── raw/
 │   │   └── processed/
@@ -122,13 +125,27 @@ dryroute/
 │   └── models/
 │       └── .gitkeep
 │
-├── data_pipeline/               # Standalone ETL scripts
-│   ├── ingest_roads.py
-│   ├── ingest_flood_reports.py
-│   ├── ingest_weather.py
-│   └── build_segments.py
+├── data-pipeline/             # ✅ Built: GIS/ETL → road-segment dataset + MongoDB (see DATAREADME.md)
+│   ├── CLAUDE.md              # step-by-step build log and data decisions
+│   ├── ML_HANDOFF.md          # features, labels and leakage rules for the model
+│   ├── config.py              # bbox, CRS, paths, scoring weights
+│   ├── requirements.txt
+│   ├── .env.example           # MONGO_URI, FL511_API_KEY
+│   ├── pipeline/
+│   │   ├── 01_roads.py        # OSM drive network → graph.graphml, roads
+│   │   ├── 02_fema.py         # FEMA flood zones
+│   │   ├── 03_elevation.py    # USGS 3DEP elevation
+│   │   ├── 05_311.py          # 311 flood reports
+│   │   ├── 06_drains.py       # storm drain inlets
+│   │   ├── 07_lowpoints.py    # ponding (depression) depth
+│   │   ├── 08_build_segments.py
+│   │   ├── 09_load_mongo.py   # → Atlas `segments`
+│   │   ├── 10_closures.py     # road closures / construction → Atlas `closures`
+│   │   ├── 11_flood_criteria.py  # county 2060 design flood level
+│   │   └── 12_fiu_parking.py  # FIU lots/garages + ponding hotspots → Atlas `parking`, `fiu_hotspots`
+│   └── data/processed/        # graph.graphml, segments.parquet, flood_reports.parquet, FIU GeoJSON
 │
-└── docs/
+└── docs/                      # (planned)
     ├── architecture.md
     ├── api-contracts.md
     └── demo-script.md
@@ -146,8 +163,8 @@ dryroute/
                                  │
                                  ▼
                      ┌────────────────────────┐
-                     │     data_pipeline/       │
-                     │ ingest_*.py, build_segments.py │
+                     │     data-pipeline/       │
+                     │ pipeline/01–12 (see DATAREADME) │
                      │  → normalized road-segment set │
                      └───────────┬─────────────┘
                                  │
@@ -160,9 +177,10 @@ dryroute/
                                  │ risk score per segment
                                  ▼
                      ┌────────────────────────┐
-                     │        MongoDB           │
-                     │ road_segments, users,    │
-                     │ routes, alerts, trips     │
+                     │   MongoDB (db: flood)    │
+                     │ segments, closures,      │
+                     │ parking, fiu_hotspots;   │
+                     │ users, routes, alerts, trips (planned) │
                      └───────────┬─────────────┘
                                  │
                                  ▼
@@ -180,7 +198,7 @@ dryroute/
                      └────────────────────────┘
 ```
 
-Full data flow, sequence diagrams, and the finalized hosting decision live in [`docs/architecture.md`](docs/architecture.md). A day-of execution plan and role breakdown is provided as the companion PDF: **DryRoute — Hackathon Plan & Role Breakdown**.
+Full data flow, sequence diagrams, and the finalized hosting decision will live in `docs/architecture.md` (not yet added). A day-of execution plan and role breakdown is provided as the companion PDF: **DryRoute — Hackathon Plan & Role Breakdown**.
 
 ## Getting Started
 
@@ -225,27 +243,33 @@ python src/train.py
 python src/predict.py
 ```
 
+### 6. Data pipeline (already run)
+The data is already in MongoDB Atlas and `data-pipeline/data/processed/`. Only rerun it if you're changing it: see [DATAREADME.md](DATAREADME.md#running-the-pipeline-only-if-youre-changing-it).
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and populate:
 
 | Variable | Purpose |
 |---|---|
-| `MONGODB_URI` | MongoDB Atlas connection string |
+| `MONGO_URI` | MongoDB Atlas connection string (the data pipeline reads this name) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Calendar OAuth |
 | `WEATHER_API_KEY` | Weather forecast provider (e.g. NOAA / OpenWeather / Tomorrow.io) |
 | `ELEVATION_API_KEY` | Elevation data (e.g. USGS / Google Elevation API / Open-Elevation) |
 | `ROUTING_API_KEY` | Routing/mapping provider (e.g. Mapbox / Google Maps / OSRM self-hosted) |
 | `NEXT_PUBLIC_API_BASE_URL` | Backend URL the frontend calls |
 | `NEXT_PUBLIC_MAPS_API_KEY` | Client-side map rendering key |
+| `FL511_API_KEY` | Optional: live FDOT road closures for `data-pipeline/pipeline/10_closures.py` (free FL511 developer key) |
 
-See `docs/architecture.md` for the recommended provider per key and free-tier notes.
+The data pipeline has its own `data-pipeline/.env` (template: `data-pipeline/.env.example`). Never commit `.env` files.
+
+Recommended providers per key and free-tier notes will go in `docs/architecture.md` (not yet added).
 
 ## Team & Ownership
 
 | Area | Owner | Key Files |
 |---|---|---|
-| Data & GIS | *(assign)* | `data_pipeline/`, GIS layers |
+| Data & GIS | *(assign)* | `data-pipeline/`, [DATAREADME.md](DATAREADME.md) |
 | Machine Learning | *(assign)* | `ml/` |
 | Backend, Routing & Calendar | *(assign)* | `backend/` |
 | Frontend & Integration | *(assign)* | `frontend/` |
@@ -254,7 +278,7 @@ Full task-level breakdown and tonight's execution timeline are in the companion 
 
 ## Project Status / Roadmap
 
-- [ ] Road-segment dataset finalized (data & GIS)
+- [x] Road-segment dataset finalized (data & GIS): in Atlas (`flood.segments`), see [DATAREADME.md](DATAREADME.md)
 - [ ] Baseline flood-risk scoring live (ML)
 - [ ] FastAPI + MongoDB + Google OAuth wired up (backend)
 - [ ] Route planning + travel-time calc working (backend)
@@ -264,4 +288,4 @@ Full task-level breakdown and tonight's execution timeline are in the companion 
 
 ## Contributing
 
-This is a hackathon project — coordinate through `docs/api-contracts.md` before changing any shared request/response shape so frontend and backend don't drift out of sync mid-build.
+This is a hackathon project — coordinate through `docs/api-contracts.md` (to be added) before changing any shared request/response shape so frontend and backend don't drift out of sync mid-build.
