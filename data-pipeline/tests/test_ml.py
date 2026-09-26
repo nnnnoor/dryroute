@@ -6,7 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from ml.data import assign_groups, baseline, prepare_panel, street_table
+from ml.data import assign_groups, baseline, prepare_panel, report_history, street_table
 from ml.model import FEATURES, features
 from ml.evaluate import evaluate_population
 from ml.predict import score_segments
@@ -27,6 +27,9 @@ def rainfall():
     return {"timezone": "America/New_York", "daily_units": {"precipitation_sum": "mm"},
             "daily": {"time": pd.date_range("2023-09-27", "2023-10-03").strftime("%Y-%m-%d").tolist(),
                       "precipitation_sum": [1, 2, 3, 4, 5, 6, 7]}}
+
+
+NO_HISTORY = pd.DataFrame({"street_id": pd.Series(dtype=str), "date": pd.Series(dtype="datetime64[ns]")})
 
 
 class FakeModel:
@@ -94,7 +97,7 @@ class MLTests(unittest.TestCase):
 
     def test_feature_allowlist_ignores_labels(self):
         f = street_table(segments())
-        f["rain_mm"], f["rain_lag1_mm"], f["rain_prior3_mm"] = 5, 2, 4
+        f["rain_mm"], f["rain_lag1_mm"], f["rain_prior3_mm"], f["report_rate"] = 5, 2, 4, 1.
         first = features(f)
         f["risk_score"], f["flood_report_days"], f["target"] = 1, 999, 1
         pd.testing.assert_frame_equal(first, features(f))
@@ -105,7 +108,8 @@ class MLTests(unittest.TestCase):
         s.loc[s.street_id.eq("street_39"), "is_bridge"] = True
         bundle = {"model": FakeModel(), "reference": np.linspace(0, .1, 1001),
                   "metadata": {"version": "test", "created_at": "2026-01-01T00:00:00Z"},
-                  "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200}}
+                  "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200},
+                  "history": NO_HISTORY}
         weather = {"date": "2026-03-08", "rain_mm": 5, "rain_lag1_mm": 2,
                    "rain_prior3_mm": 4, "source": "test", "updated_at": "2026-03-08T10:00:00Z"}
         out = score_segments(s, bundle, weather)
@@ -135,6 +139,46 @@ class MLTests(unittest.TestCase):
         self.assertEqual(result["model"]["overall"]["positive_rows"], 1)
         self.assertEqual(result["model"]["overall"]["represented_street_days"], 15)
         self.assertFalse(saved.duplicated(["street_id", "date"]).any())
+
+    def test_report_history_is_time_safe_and_frozen(self):
+        # City window 2022-10-01 to 2024-08-09. Reports on 2023-01-01 and 2023-06-25.
+        positives = pd.DataFrame({"street_id": ["a", "a"], "date": pd.to_datetime(["2023-01-01", "2023-06-25"])})
+        frame = pd.DataFrame({"street_id": "a", "jurisdiction": "city",
+            "date": pd.to_datetime(["2023-06-30", "2022-10-20", "2026-01-01"])})
+        rate = report_history(frame, positives)
+        self.assertAlmostEqual(rate[0], 1 / (265 / 365.25))  # 06-25 is inside the 7-day gap
+        self.assertTrue(np.isnan(rate[1]))  # only 12 days of coverage
+        self.assertAlmostEqual(rate[2], 2 / (679 / 365.25))  # coverage ends with the window
+        frozen = report_history(frame.iloc[[0]], positives, freeze="2022-12-01")
+        self.assertEqual(frozen[0], 0)
+
+    def test_rolling_validation_fits_only_on_the_past(self):
+        from ml.train import rolling_validation
+        streets = street_table(segments(10)).assign(rain_mm=5., rain_lag1_mm=2., rain_prior3_mm=4., report_rate=1.)
+        dates = pd.date_range("2023-01-01", "2023-01-06")
+        dev = pd.concat([streets.assign(date=d, sample_weight=1., target=(streets.index == i % 10).astype(int))
+                         for i, d in enumerate(dates)], ignore_index=True)
+        windows = [("2023-01-02", "2023-01-03", "2023-01-04"), ("2023-01-04", "2023-01-05", "2023-01-06")]
+        seen = []
+        def fake_fit(name, frame):
+            seen.append(frame.date.max())
+            return FakeModel()
+        with patch("ml.train.ROLLING_WINDOWS", windows), patch("ml.train.fit_model", fake_fit):
+            result = rolling_validation(dev, "gradient_boosting")
+        self.assertEqual(seen, [pd.Timestamp("2023-01-02"), pd.Timestamp("2023-01-04")])
+        self.assertEqual([w["overall"]["evaluated_rows"] for w in result["windows"]], [20, 20])
+        with patch("ml.train.ROLLING_WINDOWS", [("2023-01-02", "2023-02-01", "2023-02-02")]), \
+             patch("ml.train.fit_model", fake_fit), self.assertRaises(ValueError):
+            rolling_validation(dev, "gradient_boosting")
+
+    def test_serving_requires_history(self):
+        bundle = {"model": FakeModel(), "reference": np.linspace(0, .1, 1001),
+                  "metadata": {"version": "test", "created_at": "2026-01-01T00:00:00Z"},
+                  "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200}}
+        weather = {"date": "2026-03-08", "rain_mm": 5, "rain_lag1_mm": 2,
+                   "rain_prior3_mm": 4, "source": "test", "updated_at": "2026-03-08T10:00:00Z"}
+        with self.assertRaises(ValueError):
+            score_segments(segments(), bundle, weather)
 
 
 if __name__ == "__main__":

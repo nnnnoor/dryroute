@@ -53,6 +53,19 @@ selected only on validation data. Because these test periods have already been
 examined in earlier iterations, revised results are retrospective comparisons,
 not a fresh blind test. See `alert_results.json` for the current policy and results.
 
+Current full-validation budget results (`full_validation_budget_v2`), with and without
+report history (both regenerated 2026-09-26):
+
+| Model | Test | Precision | Recall | False-positive rate | TP / FP / FN |
+|---|---|---:|---:|---:|---:|
+| v2, logistic, cutoff 0.00104 | Later dates | 0.322% | 14.2% | 0.70% | 80 / 24,764 / 485 |
+| v2, logistic, cutoff 0.00104 | Unseen streets + later dates | 0.264% | 13.6% | 0.71% | 16 / 6,053 / 102 |
+| v1, boosting, cutoff 0.00209 | Later dates | 0.235% | 15.2% | 1.03% | 86 / 36,462 / 479 |
+| v1, boosting, cutoff 0.00209 | Unseen streets + later dates | 0.225% | 16.9% | 1.04% | 20 / 8,870 / 98 |
+
+Report history cut false alerts by about a third at similar recall, but only about
+1 in 310 alerts matches a report. Still not suitable for per-street user warnings.
+
 ## Predict the next few days
 
 ```sh
@@ -95,6 +108,29 @@ The current trained model is retained rather than silently changing its labels.
 This package prepares street-day training data, trains and evaluates a daily
 flood-report model, and returns standardized scores for every original road edge.
 It does not implement routing, Calendar, an HTTP server, or database updates.
+
+## Live conditions before a departure
+
+```sh
+.venv/bin/python -m ml.live --departs-at 2026-09-26T19:30-04:00 \
+    --point 25.7563,-80.3735 --point 25.7610,-80.1920
+```
+
+Meant to run about an hour before a calendar departure (up to 3 hours ahead). It
+uses three sources with no keys or signups and writes `artifacts/ml/live_conditions.json`:
+
+- **NWS alerts** (`api.weather.gov`): flood-related alerts still in effect at departure,
+  one request per `--point`. Coastal flood statements are zone-wide (`has_polygon: false`).
+- **NOAA Virginia Key tide gauge** (`8723214`): highest predicted tide within ±1 h of
+  departure plus the current observed-minus-predicted anomaly, compared with the NWS
+  minor flood level (ft, station datum). A stale observation (> 30 min) falls back to
+  predictions only (`anomaly_applied: false`).
+- **Open-Meteo 15-minute rain** (NOAA HRRR model in the US): rain in the past 2 h, before
+  departure, and during the trip, per point. Model output, not radar or gauges.
+  Free for non-commercial use (10,000 calls/day), CC BY 4.0: credit Open-Meteo in the app.
+
+A failed source is `status: "unavailable"`, never treated as dry. These are raw signals.
+Nothing yet maps them onto specific streets or routes.
 
 ## Run it
 
@@ -202,9 +238,17 @@ downloads raise an error instead of silently substituting zero rain.
   in fitting and validation; there is no extra class balancing.
 - Use an explicit feature allowlist: FEMA, elevation, ponding, road length, drain
   inventory count, tunnel flag, jurisdiction, rainfall that day, previous-day rain,
-  preceding three-day rain, and a rain/static-risk interaction. Drain inventory
-  coverage is uneven; a zero is not proof of absent drainage. Historical complaint
-  totals, existing `risk_score`, IDs and labels are excluded from model inputs.
+  preceding three-day rain, a rain/static-risk interaction, the street's flood
+  report-days per year (`log_report_rate`) and rain × that rate. Drain inventory
+  coverage is uneven; a zero is not proof of absent drainage. Existing `risk_score`,
+  `flood_report_days`, IDs and labels are excluded from model inputs.
+- Report history (`ml.data.report_history`, v2) counts only report-days before
+  *date − 7 days*, so a storm's own multi-day reports never feed its prediction.
+  Rates cover the jurisdiction's 311 window up to that cutoff; under 30 days of
+  coverage is unknown. Test and alert-validation history is frozen at the start of
+  the evaluated period, like serving, where it ends with the last 311 record
+  (2024-08-09; the bundle stores it as `history`). It measures where people report,
+  not only where water collects.
 
 Historical precipitation comes from the [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api).
 The [forecast adapter](https://open-meteo.com/en/docs) supplies equivalent daily
@@ -221,9 +265,13 @@ same approximately 80/20 partition. The held-out 20% never enters model selectio
 or fitting. Neighboring streets without shared tickets can still cross partitions;
 this is not a spatial-block holdout.
 
-1. Fit candidates through 2023-06-30 on development streets.
-2. Select logistic regression versus small gradient-boosted trees by weighted
-   validation average precision on 2023-07-01 through 2023-09-30.
+1. For each rolling window (fit through 2022-12-31, 2023-03-31, 2023-06-30; validate
+   the following quarter), fit logistic regression and small gradient-boosted trees
+   on development streets and score the window (`settings.ROLLING_WINDOWS`).
+2. Select the architecture with the higher **median** window average precision (mean
+   ROC-AUC breaks ties). One top-ranked report can dominate a single window's AP;
+   Jul–Sep 2023 did. Current run: boosting 0.00132 (windows 0.00055 / 0.00132 /
+   0.00684) vs logistic 0.00067.
 3. Refit the selected architecture through 2023-09-30, still without held-out streets.
 4. Evaluate **every eligible street-day** from 2023-10-01 onward, separately for
    development streets (`future_test`) and unseen streets (`unseen_streets_test`).
@@ -240,7 +288,26 @@ provides a prevalence reference. Average precision is a PR summary, not accuracy
 and not the same as trapezoidal PR-AUC. Small positive counts make county metrics
 unstable; report the counts alongside them. See `results.json` for this run.
 
-### Initial results (2026-09-26)
+### Current results: `daily_report_v2` with report history (2026-09-26)
+
+Gradient boosting won the rolling-window selection (median AP 0.00132 vs logistic 0.00067).
+**Caution:** that validation AP comes almost entirely from one report ranked first
+out of 1.68M street-days; without it, AP is 0.00070. A rolling check over three
+development windows (Jan–Mar, Apr–Jun, Jul–Sep 2023; 627 reports) still favors
+history: AP 0.00044 → 0.00055 and 0.00098 → 0.00132 in the two windows without that
+report, ROC-AUC 0.845 → 0.860, recall in the top 1% 9.1% → 11.7%.
+
+| Test | Report-positive days | v2 AP | v1 AP | v2 ROC-AUC | v1 ROC-AUC |
+|---|---:|---:|---:|---:|---:|
+| Later dates, development streets | 565 / 3,554,108 | 0.002097 | 0.001564 | 0.828 | 0.815 |
+| Later dates, unseen streets | 118 / 855,236 | 0.002404 | 0.001694 | 0.811 | 0.804 |
+
+City-only diagnostics (later dates / unseen streets), v1 → v2: street ranking on
+report days (within-day ROC-AUC) 0.731 → 0.755 / 0.755 → 0.770; picking report
+days (day-level ROC-AUC) 0.567 → 0.581 / 0.599 → 0.583, still near chance. The gain
+is mostly *where*, not *when*. Tide features were tested and rejected (see CLAUDE.md).
+
+### Initial results, v1 (2026-09-26)
 
 Gradient boosting won validation. The sampled preparation table contains 277,495
 rows; final tests cover all 4,409,344 eligible held-out street-days.

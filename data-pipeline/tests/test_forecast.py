@@ -6,14 +6,15 @@ import pandas as pd
 
 from ml.forecast import predict_horizon
 from ml.weather import forecast_records
-from test_ml import FakeModel, rainfall, segments
+from test_ml import NO_HISTORY, FakeModel, rainfall, segments
 
 
 class ForecastTests(unittest.TestCase):
     def setUp(self):
         self.bundle = {"model": FakeModel(), "reference": np.linspace(0, .1, 1001),
             "metadata": {"version": "test", "created_at": "2023-09-30T00:00:00Z"},
-            "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200}}
+            "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200},
+            "history": NO_HISTORY}
         self.weather = forecast_records(rainfall(), 3, datetime.fromisoformat("2023-09-30T10:00:00-04:00"))
 
     def test_future_lags_include_forecast_rain(self):

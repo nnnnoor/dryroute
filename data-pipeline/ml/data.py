@@ -4,7 +4,7 @@ import hashlib
 import numpy as np
 import pandas as pd
 
-from ml.settings import SEED, TRAIN_END, VALIDATION_END, WINDOWS
+from ml.settings import HISTORY_GAP_DAYS, HISTORY_MIN_EXPOSURE_DAYS, SEED, TRAIN_END, VALIDATION_END, WINDOWS
 from ml.weather import RAIN_FEATURES
 
 STATIC = ["fema_risk_level", "elev_p10", "sink_p90", "length", "drain_count", "is_tunnel"]
@@ -66,6 +66,25 @@ def label_links(segments, streets, reports):
     return links.loc[valid & ~links.is_bridge].copy(), audit
 
 
+def report_history(frame, positives, freeze=None):
+    """Flood report-days per year on each street, counting only reports before date - gap.
+
+    frame needs street_id, jurisdiction and date. freeze caps the cutoff, mimicking serving,
+    where history ends with the last 311 record. Under the minimum coverage is unknown (NaN).
+    """
+    cutoff = pd.to_datetime(frame.date) - pd.Timedelta(days=HISTORY_GAP_DAYS)
+    if freeze is not None:
+        cutoff = cutoff.clip(upper=pd.Timestamp(freeze))
+    start = frame.jurisdiction.map({k: pd.Timestamp(v[0]) for k, v in WINDOWS.items()})
+    end = frame.jurisdiction.map({k: pd.Timestamp(v[1]) + pd.Timedelta(days=1) for k, v in WINDOWS.items()})
+    exposure = (end.clip(upper=cutoff) - start).dt.days
+    counts = pd.Series(0., index=frame.index)
+    for value, index in frame.groupby(cutoff).groups.items():
+        before = positives.loc[positives.date < value].groupby("street_id").size()
+        counts.loc[index] = frame.street_id.loc[index].map(before).fillna(0).to_numpy()
+    return (counts / (exposure / 365.25)).where(exposure >= HISTORY_MIN_EXPOSURE_DAYS)
+
+
 def assign_groups(streets, links):
     # A snapped ticket may tie between different physical streets: union these too.
     parent = {s: s for s in streets.street_id}
@@ -124,6 +143,7 @@ def prepare_panel(segments, reports, weather, negative_fraction=.02):
                     pieces.append(frame)
     panel = pd.concat(pieces, ignore_index=True).merge(streets, on="street_id", validate="many_to_one")
     panel = panel.merge(weather.reset_index(), on="date", validate="many_to_one")
+    panel["report_rate"] = report_history(panel, positives)
     if panel.duplicated(["street_id", "date"]).any():
         raise ValueError("Duplicate street-day")
     audit.update({"segments": len(segments), "streets": len(streets), "positive_street_days": len(positives),

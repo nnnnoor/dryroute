@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from threadpoolctl import threadpool_limits
 
-from ml.data import baseline
+from ml.data import baseline, report_history
 from ml.model import features
 from ml.settings import OUTPUT, VALIDATION_END, WINDOWS
 from ml.weather import RAIN_FEATURES
@@ -21,6 +21,8 @@ def evaluate_population(streets, positives, weather, model, prevalence, split, o
     candidates = streets.loc[~streets.is_bridge & streets.heldout_street.eq(heldout)]
     positive_map = positives.groupby("date").street_id.agg(set).to_dict()
     weather = weather.set_index("date", verify_integrity=True)
+    # Serving history is frozen at the last 311 record; freeze it at the start of the evaluated period.
+    freeze = pd.Timestamp(start_date) if start_date else pd.Timestamp(VALIDATION_END) + pd.Timedelta(days=1)
     pieces, probabilities, physical_scores = [], [], []
     writer = None
     try:
@@ -35,6 +37,8 @@ def evaluate_population(streets, positives, weather, model, prevalence, split, o
                 frame = local.copy()
                 for column in RAIN_FEATURES:
                     frame[column] = weather.loc[date, column]
+                frame["date"] = date
+                frame["report_rate"] = report_history(frame, positives, freeze)
                 probability = model.predict_proba(features(frame))[:, 1]
                 target = frame.street_id.isin(positive_map.get(date, set())).to_numpy(dtype=np.int8)
                 compact = pd.DataFrame({"target": target, "sample_weight": 1.,

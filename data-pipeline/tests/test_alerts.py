@@ -5,7 +5,7 @@ import numpy as np
 from ml.alerts import budget_threshold, choose_threshold, classification_metrics
 from ml.predict import score_segments
 from ml.model import PriorAdjustedClassifier
-from test_ml import FakeModel, segments
+from test_ml import NO_HISTORY, FakeModel, segments
 
 
 class AlertTests(unittest.TestCase):
@@ -59,7 +59,7 @@ class AlertTests(unittest.TestCase):
         bundle = {"model": FakeModel(), "reference": np.linspace(0, .1, 1001),
             "metadata": {"version": "test", "created_at": "2023-09-30T00:00:00Z"},
             "weather_max": {"rain_mm": 100, "rain_lag1_mm": 100, "rain_prior3_mm": 200},
-            "alert_model": FakeModel(), "alert_policy": {"threshold": .01}}
+            "alert_model": FakeModel(), "alert_policy": {"threshold": .01}, "history": NO_HISTORY}
         s = segments(4)
         s.loc[s.street_id.eq("street_3"), "is_bridge"] = True
         w = {"date": "2026-09-26", "rain_mm": 5, "rain_lag1_mm": 0, "rain_prior3_mm": 0,

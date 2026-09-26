@@ -11,7 +11,8 @@ from ml.data import baseline
 from ml.weather import RAIN_FEATURES
 
 FEATURES = ["fema_risk_level", "elev_p10", "sink_p90", "log_length", "log_drain_count",
-            "is_tunnel", "city", "log_rain", "log_rain_lag1", "log_rain_prior3", "rain_x_static"]
+            "is_tunnel", "city", "log_rain", "log_rain_lag1", "log_rain_prior3", "rain_x_static",
+            "log_report_rate", "rain_x_history"]
 
 
 def features(frame):
@@ -23,6 +24,9 @@ def features(frame):
     for source, target in zip(RAIN_FEATURES, ["log_rain", "log_rain_lag1", "log_rain_prior3"]):
         x[target] = np.log1p(frame[source])
     x["rain_x_static"] = x.log_rain * risk
+    # report_rate comes from ml.data.report_history: time-safe, NaN when coverage is too short.
+    x["log_report_rate"] = np.log1p(frame.report_rate)
+    x["rain_x_history"] = x.log_rain * x.log_report_rate.fillna(0)
     return x[FEATURES].astype(float)
 
 

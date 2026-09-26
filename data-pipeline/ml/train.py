@@ -16,7 +16,7 @@ from threadpoolctl import threadpool_limits
 import config
 from ml.data import baseline, prepare_panel
 from ml.model import FEATURES, features, fit_model, reference_quantiles
-from ml.settings import MODEL_VERSION, OUTPUT, TRAIN_END, VALIDATION_END, WEATHER_CACHE
+from ml.settings import MODEL_VERSION, OUTPUT, ROLLING_WINDOWS, TRAIN_END, VALIDATION_END, WEATHER_CACHE
 from ml.weather import RAIN_FEATURES, load_archive
 
 
@@ -39,6 +39,25 @@ def report_metrics(frame, predictions, is_probability=True):
     return out
 
 
+def rolling_validation(development, name):
+    """Fit through each cutoff and score the next quarter.
+
+    Selection uses the median window AP: a single top-ranked report can dominate one
+    window's AP (Jul-Sep 2023 did), but not the median of three.
+    """
+    windows = []
+    for train_end, start, end in ROLLING_WINDOWS:
+        fit_rows = development.loc[development.date <= pd.Timestamp(train_end)]
+        rows = development.loc[development.date.between(pd.Timestamp(start), pd.Timestamp(end))]
+        if rows.target.nunique() != 2:
+            raise ValueError(f"Validation window {start}–{end} needs positive and negative labels")
+        p = fit_model(name, fit_rows).predict_proba(features(rows))[:, 1]
+        windows.append({"train_through": train_end, "validate": [start, end], **report_metrics(rows, p)})
+    return {"windows": windows,
+            "median_average_precision": float(np.median([w["overall"]["average_precision"] for w in windows])),
+            "mean_roc_auc": float(np.mean([w["overall"]["roc_auc"] for w in windows]))}
+
+
 def run(output=OUTPUT, negative_fraction=.02):
     output.mkdir(parents=True, exist_ok=True)
     segments_path, reports_path = config.PROC / "segments.parquet", config.PROC / "flood_reports.parquet"
@@ -50,15 +69,13 @@ def run(output=OUTPUT, negative_fraction=.02):
     weather.to_parquet(output / "weather_daily.parquet", index=False)
     streets.to_parquet(output / "streets.parquet", index=False)
     print("Prepared:", json.dumps(audit), flush=True)
-    train, validation = panel.loc[panel.split.eq("train")], panel.loc[panel.split.eq("validation")]
+    development = panel.loc[panel.split.isin(["train", "validation"])]
     candidates = {}
     for name in ["logistic", "gradient_boosting"]:
-        model = fit_model(name, train)
-        p = model.predict_proba(features(validation))[:, 1]
-        candidates[name] = report_metrics(validation, p)
-        print("Validation", name, json.dumps(candidates[name]["overall"]), flush=True)
-    chosen = max(candidates, key=lambda n: candidates[n]["overall"]["average_precision"] or -1)
-    development = panel.loc[panel.split.isin(["train", "validation"])]
+        candidates[name] = rolling_validation(development, name)
+        print("Rolling validation", name, json.dumps({k: candidates[name][k] for k in ["median_average_precision", "mean_roc_auc"]}),
+              [round(w["overall"]["average_precision"], 5) for w in candidates[name]["windows"]], flush=True)
+    chosen = max(candidates, key=lambda n: (candidates[n]["median_average_precision"], candidates[n]["mean_roc_auc"]))
     model = fit_model(chosen, development)
     development_probability = model.predict_proba(features(development))[:, 1]
     reference = reference_quantiles(development_probability, development.sample_weight)
@@ -78,6 +95,7 @@ def run(output=OUTPUT, negative_fraction=.02):
         "audit": audit, "data_sha256": fingerprints,
         "sklearn_version": sklearn.__version__, "pandas_version": pd.__version__,
         "split_summary": panel.groupby("split").agg(rows=("target", "size"), positives=("target", "sum"), represented_days=("sample_weight", "sum")).to_dict("index"),
+        "selection_rule": "Median average precision over rolling quarterly validation windows; mean ROC-AUC breaks ties",
         "validation": candidates, "tests": evaluations,
         "test_evaluation": "Full eligible street-day populations; no negative sampling in tests",
         "limitations": ["Labels are reports, not confirmed flooding; unreported days are noisy negatives",
@@ -87,10 +105,12 @@ def run(output=OUTPUT, negative_fraction=.02):
             "Static layers reflect current data, not necessarily their historical state",
             "Held-out groups prevent twin/ticket leakage, not all nearby-street spatial dependence",
             "Bridge labels are structurally absent; bridge scores use an explicit policy fallback",
-            "Relative scores are ranks, not physical flood probabilities or road-passability guarantees"],
+            "Relative scores are ranks, not physical flood probabilities or road-passability guarantees",
+            "Report history measures where people report, not only where it floods; serving history ends with the last 311 record (2024-08-09)"],
     }
     bundle = {"model": model, "reference": reference, "metadata": metadata,
-              "weather_max": development[RAIN_FEATURES].max().to_dict()}
+              "weather_max": development[RAIN_FEATURES].max().to_dict(),
+              "history": positives[["street_id", "date"]].copy()}
     joblib.dump(bundle, output / "model.joblib")
     (output / "evaluation.json").write_text(json.dumps(metadata, indent=2) + "\n")
     baseline_scores, coverage = baseline(streets)

@@ -11,7 +11,7 @@ import pandas as pd
 from threadpoolctl import threadpool_limits
 
 import config
-from ml.data import baseline, street_table
+from ml.data import baseline, report_history, street_table
 from ml.model import features, relative_score
 from ml.settings import OUTPUT, TIMEZONE
 from ml.weather import RAIN_FEATURES
@@ -33,9 +33,13 @@ def score_segments(segments, bundle, weather):
         raise ValueError("Rainfall must be finite, nonnegative mm")
     if values[2] + 1e-9 < values[1]:
         raise ValueError("Prior three-day rainfall must include yesterday's rainfall")
+    if "history" not in bundle:
+        raise ValueError("Model bundle lacks report history; retrain with python -m ml.train")
     streets = street_table(segments)
     for c, value in zip(RAIN_FEATURES, values):
         streets[c] = value
+    streets["date"] = pd.Timestamp(date)
+    streets["report_rate"] = report_history(streets, bundle["history"])
     physical, coverage = baseline(streets)
     output = streets[["street_id"]].copy()
     output["risk_score"] = physical
