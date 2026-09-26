@@ -42,31 +42,43 @@ class LocalStore(Store):
         self.hotspots = gpd.read_file(d / "fiu_hotspots.geojson").set_index("hotspot_id", drop=False)
         with open(settings.fixtures_dir / "closures.json", encoding="utf-8") as f:
             self._closures = [_parse_closure(c) for c in json.load(f)]
-        self._storm_run = {**FAKE_STORM_RUN, "computed_at": datetime.now(timezone.utc)}
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)
         return [c for c in self._closures
                 if c["start"] <= now and (c["end"] is None or c["end"] >= now)]
 
-    # There is no ML job locally. "live" has no run, so the backend falls back to the static score.
-    # "storm" is a fake run derived from the static score, so the demo toggle works offline.
+    # There is no ML job locally, so both scenarios get a fake run derived from the static score:
+    # "live" is a dry day, "storm" is heavy rain. Always fresh, so they never go stale.
     def latest_risk_run(self, scenario):
-        return self._storm_run if scenario == "storm" else None
+        run = FAKE_RUNS.get(scenario)
+        return {**run, "computed_at": datetime.now(timezone.utc)} if run else None
 
     def risk_scores(self, run_id):
-        if run_id != FAKE_STORM_RUN["_id"]:
+        run = next((r for r in FAKE_RUNS.values() if r["_id"] == run_id), None)
+        if run is None:
             return {}
         streets = self.segments.drop_duplicates("street_id")
+        return dict(zip(streets["street_id"], run["transform"](streets["risk_score"])))
+
+
+FAKE_RUNS = {
+    "live": {
+        "_id": "fake-dry",
+        "scenario": "live",
+        "model_version": "fake-dry-local",
+        "rain": {"rain_mm_next_3h": 0.0, "rain_mm_last_24h": 0.0, "max_hourly_mm": 0.0},
+        # Scaled down: max 0.96 -> 0.38, so nothing is high risk
+        "transform": lambda s: s * 0.4,
+    },
+    "storm": {
+        "_id": "fake-storm",
+        "scenario": "storm",
+        "model_version": "fake-storm-local",
+        "rain": {"rain_mm_next_3h": 50.0, "rain_mm_last_24h": 80.0, "max_hourly_mm": 25.0},
         # Same ranking as the static score, pushed up (0.32 -> 0.50, 0.58 -> 0.72)
-        return dict(zip(streets["street_id"], streets["risk_score"] ** 0.6))
-
-
-FAKE_STORM_RUN = {
-    "_id": "fake-storm",
-    "scenario": "storm",
-    "model_version": "fake-storm-local",
-    "rain": {"rain_mm_next_3h": 50.0, "rain_mm_last_24h": 80.0, "max_hourly_mm": 25.0},
+        "transform": lambda s: s ** 0.6,
+    },
 }
 
 

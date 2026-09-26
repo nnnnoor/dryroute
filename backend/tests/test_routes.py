@@ -5,7 +5,14 @@ BRICKELL_TO_GOLD = {"from_lat": 25.7617, "from_lon": -80.1918, "parking_id": "wa
 ISO_Z = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 
+def test_dry_day_is_not_compromised(client):
+    b = client.get("/routes", params=BRICKELL_TO_GOLD).json()
+    assert b["compromised"] is False
+    assert b["usual"]["high_risk_m"] == 0
+
+
 def test_safe_route_has_less_high_risk_road(client):
+    client.post("/demo/scenario", json={"scenario": "storm"})
     b = client.get("/routes", params=BRICKELL_TO_GOLD).json()
     usual, safe = b["usual"], b["safe"]
     assert b["compromised"] is True
@@ -35,6 +42,7 @@ def test_origin_outside_area(client):
 
 
 def test_full_closure_is_avoided(client):
+    client.post("/demo/scenario", json={"scenario": "storm"})
     usual = client.get("/routes", params=BRICKELL_TO_GOLD).json()["usual"]
     closed_edge = usual["risk_segments"][0]["segment_id"]
     store = client.app.state.store
