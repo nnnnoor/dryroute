@@ -29,7 +29,7 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /segments/risk` | Road risk in a map box, for coloring the map | ✅ built |
 | `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built |
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
-| `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | planned |
+| `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
 | `GET /alerts`, `POST /alerts/{alert_id}/read` | In-app alerts (poll every ~60 s) | planned |
 | `GET /dashboard` | Personal stats | planned |
 | `POST /demo/scenario` | Switch to the demo storm scores | ✅ built |
@@ -163,27 +163,44 @@ No params. Returns every FIU lot/garage with its hazard right now (for the map):
 
 ### `GET /calendar/events` and `GET /calendar/next-event`
 
-`/calendar/next-event` returns the next event plus the trip plan:
+`/calendar/next-event` returns the next **in-person** event (online ones are skipped) plus the trip plan.
+Params: `from_lat, from_lon` (the student's current location; optional, both or neither; default: saved home).
 ```json
 {
-  "event_id": "abc",
-  "event_name": "COP 3530",
-  "start_time": "2026-09-26T13:00:00Z",
-  "end_time": "2026-09-26T14:15:00Z",
+  "event_id": "fake0_20260928",
+  "event_name": "COP 3530 Data Structures",
+  "start_time": "2026-09-28T13:00:00Z",
+  "end_time": "2026-09-28T14:15:00Z",
   "location": "PC 213",
-  "location_point": {"lat": 25.7563, "lon": -80.3736},
-  "recommended_departure": "2026-09-26T12:20:00Z",
-  "trip": {"compromised": true, "eta_minutes": 30.9, "parking_hazardous": false},
-  "route_query": {"from_lat": 25.76, "from_lon": -80.19, "parking_id": "way/…", "arrive_by": "2026-09-26T12:55:00Z"}
+  "location_point": {"lat": 25.755517, "lon": -80.373785},
+  "recommended_departure": "2026-09-28T12:25:00Z",
+  "leave_in_minutes": 85,
+  "trip": {
+    "compromised": true,
+    "recommendation": {"action": "reroute_caution", "message": "The safer route avoids 6.9 km of flood-prone road but still crosses 1.2 km. Drive carefully (+1.4 min)."},
+    "take": "safe",
+    "eta_minutes": 21.1,
+    "parking_id": "way/112762942",
+    "parking_name": "Gold Parking Garage",
+    "parking_hazardous": false,
+    "walk_minutes": 3
+  },
+  "route_query": {"from_lat": 25.7617, "from_lon": -80.1918, "parking_id": "way/112762942", "arrive_by": "2026-09-28T12:47:00Z"}
 }
 ```
-- Returns **204 No Content** when nothing is coming up.
-- `location` is the event's location text as typed in the calendar; `location_point` is `null` when it couldn't be
-  resolved to a place (then `recommended_departure`, `trip` and `route_query` are `null` too).
+- Returns **204 No Content** when no in-person event is coming up in the next 7 days.
+- `location` is the location text as typed in the calendar. It's matched to an FIU building code ("PC 213",
+  "PC213", "Graham Center (GC) 243"). `location_point` is `null` when no building matched (then
+  `recommended_departure`, `leave_in_minutes`, `trip` and `route_query` are `null` too).
+- `recommended_departure` = class start − 10 min buffer − walk from the lot − drive time of the route to take
+  (`take`: `safe` when the recommendation is to reroute, else `usual`), rounded down to the minute.
+  `leave_in_minutes` is negative when that time has passed.
+- Parking: the student's preferred lot, else the nearest usable lot to the building. If no lot is within ~800 m
+  (e.g. the Engineering Center), the trip goes to the building and the parking fields are `null`/`false`.
 - Pass `route_query` straight to `GET /routes` to draw the trip.
 
-`/calendar/events?hours=48` returns a list of events with the fields `event_id, event_name, start_time, end_time,
-location, location_point`.
+`/calendar/events?hours=48` (1–168) returns a list of events with the fields `event_id, event_name, start_time,
+end_time, location, location_point`.
 
 ### `GET /alerts`, `POST /alerts/{alert_id}/read`
 

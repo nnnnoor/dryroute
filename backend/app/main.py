@@ -4,13 +4,22 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import parking, risk, routes
-from app.config import get_settings
+from app.api import calendar, parking, risk, routes
+from app.config import Settings, get_settings
 from app.db.store import make_store
+from app.integrations.fake_calendar import FakeCalendar
+from app.services.calendar_sync import CalendarService
 from app.services.flood_risk import RiskService
 from app.services.parking import ParkingService
 from app.services.road_graph import RoadNetwork
 from app.services.route_planner import RoutePlanner
+from app.services.trips import TripPlanner
+
+
+def make_calendar_source(settings: Settings):
+    if settings.use_fake_calendar:
+        return FakeCalendar(settings.fixtures_dir / "calendar.json")
+    raise NotImplementedError("Google Calendar is not wired up yet; use USE_FAKE_CALENDAR=true")
 
 
 @asynccontextmanager
@@ -25,6 +34,9 @@ async def lifespan(app: FastAPI):
     app.state.risk = RiskService(store, settings)
     app.state.planner = RoutePlanner(network, store, app.state.risk, settings)
     app.state.parking = ParkingService(store, app.state.risk, settings)
+    app.state.trips = TripPlanner(app.state.planner, app.state.parking, store)
+    app.state.calendar = CalendarService(make_calendar_source(settings), store, app.state.trips, app.state.parking,
+                                         settings, settings.fixtures_dir / "fiu_buildings.json")
     yield
 
 
@@ -39,6 +51,7 @@ app.add_middleware(
 app.include_router(risk.router)
 app.include_router(routes.router)
 app.include_router(parking.router)
+app.include_router(calendar.router)
 
 
 @app.get("/health")

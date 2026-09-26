@@ -25,6 +25,15 @@ class ParkingService:
             pid for pid, name, access in zip(lots.index, lots["name"], lots["access"])
             if not any(word in name for word in blocked) and access != "private"}
 
+    def center(self, parking_id: str) -> tuple[float, float]:
+        """(lon, lat) of a point inside the lot. KeyError for an unknown id."""
+        return self._center[parking_id]
+
+    def nearest_suggestable(self, lat: float, lon: float) -> tuple[str, float]:
+        """(parking_id, distance in m) of the closest lot a student can be sent to."""
+        return min(((pid, distance_m((lon, lat), self._center[pid])) for pid in self._suggestable),
+                   key=lambda t: t[1])
+
     def rain_factor(self) -> float:
         level = self.risk.weather()["rain_level"]
         return self.settings.parking_rain_factor.get(level, 1.0)
@@ -57,7 +66,7 @@ class ParkingService:
             for pid in self._suggestable - {parking_id}:
                 alt = self.lot(pid, factor)
                 if alt["hazard_label"] == "low":
-                    alt["distance_from_planned_m"] = round(self._distance(parking_id, pid))
+                    alt["distance_from_planned_m"] = round(distance_m(self._center[parking_id], self._center[pid]))
                     alternatives.append(alt)
             alternatives.sort(key=lambda a: (a["type"] != "garage", a["distance_from_planned_m"]))
             alternatives = alternatives[:self.settings.parking_alternatives]
@@ -73,8 +82,10 @@ class ParkingService:
         alt = assessment["alternatives"][0]
         return f"{name} may flood. Park at {alt['name']} instead ({alt['distance_from_planned_m']} m away)."
 
-    def _distance(self, a: str, b: str) -> float:
-        (lon1, lat1), (lon2, lat2) = self._center[a], self._center[b]
-        dx = (lon2 - lon1) * M_PER_DEG_LON_EQUATOR * math.cos(math.radians(lat1))
-        dy = (lat2 - lat1) * M_PER_DEG_LAT
-        return math.hypot(dx, dy)
+
+def distance_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Straight-line distance between two (lon, lat) points; fine at campus scale."""
+    (lon1, lat1), (lon2, lat2) = a, b
+    dx = (lon2 - lon1) * M_PER_DEG_LON_EQUATOR * math.cos(math.radians(lat1))
+    dy = (lat2 - lat1) * M_PER_DEG_LAT
+    return math.hypot(dx, dy)

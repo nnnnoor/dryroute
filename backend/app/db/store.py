@@ -33,6 +33,10 @@ class Store:
         """street_id -> risk_score for one ML run (risk_scores collection)."""
         raise NotImplementedError
 
+    def get_user(self, user_id: str = "demo") -> dict:
+        """User profile: home, preferred_parking_id, arrival_buffer_minutes (users collection)."""
+        raise NotImplementedError
+
 
 class LocalStore(Store):
     def __init__(self, settings: Settings):
@@ -42,6 +46,11 @@ class LocalStore(Store):
         self.hotspots = gpd.read_file(d / "fiu_hotspots.geojson").set_index("hotspot_id", drop=False)
         with open(settings.fixtures_dir / "closures.json", encoding="utf-8") as f:
             self._closures = [_parse_closure(c) for c in json.load(f)]
+        with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
+            self._user = json.load(f)
+
+    def get_user(self, user_id="demo"):
+        return self._user
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)

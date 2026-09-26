@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     fixtures_dir: Path = BACKEND_DIR / "fixtures"
 
     use_fake_calendar: bool = True
+    calendar_lookahead_days: int = 7    # how far ahead /calendar/next-event looks
+    walk_m_per_min: float = 80          # walking speed from the lot to class
+    walk_detour: float = 1.3            # real paths vs straight line
+    max_lot_walk_m: float = 800         # no FIU lot this close to the building -> drive to the building itself
 
     # Risk labels (docs/api-contracts.md Conventions): low < risk_medium <= medium < risk_high <= high
     risk_medium: float = 0.35
