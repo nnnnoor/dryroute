@@ -16,11 +16,20 @@ No `.env` needed locally: by default it runs on the committed pipeline data
 (`data-pipeline/data/processed/`) and fake fixtures (`fixtures/`). See `.env.example` for the switches
 (`DATA_BACKEND=mongo`, `USE_FAKE_CALENDAR=false`, `CORS_ORIGINS`).
 
+### On MongoDB Atlas
+
+Put `MONGO_URI` (password without the `< >`) and `DATA_BACKEND=mongo` in `backend/.env` (git-ignored).
+The same data then comes from Atlas (db `flood`), plus the live `closures` and ML's `risk_runs` / `risk_scores`.
+Until ML writes runs, "live" serves the static score (`/weather` says `stale: true`) and "storm" uses the
+local fake storm. Tests always run offline; to also check Atlas:
+`DRYROUTE_MONGO_TESTS=1 .venv/Scripts/python -m pytest tests/test_mongo.py`
+
 ## Layout
 
 - `app/main.py`: app, startup (loads data + graph), CORS
 - `app/config.py`: settings
-- `app/db/store.py`: data access (`LocalStore` now, Mongo later), same interface either way
+- `app/db/store.py`: data access interface + `LocalStore` (committed files + fixtures)
+- `app/db/mongo.py`: `MongoStore`, the same interface on Atlas
 - `app/services/road_graph.py`: routing graph from `graph.graphml` (edge ids = segment ids)
 - `app/services/flood_risk.py`: live risk per road, read from the ML job's `risk_scores` (static score as fallback)
 - `app/services/route_planner.py`: usual vs flood-safer route on the graph (closures + risk-weighted costs)

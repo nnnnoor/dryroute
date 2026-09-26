@@ -239,10 +239,11 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 `data-pipeline/ML_HANDOFF.md`). The backend applies it to both directions of the street.
 
 ```json
-{"_id": "123_456_0", "scenario": "live", "run_id": "2026-09-26T13:00Z-live",
+{"_id": "live|123_456_0", "street_id": "123_456_0", "scenario": "live", "run_id": "2026-09-26T13:00Z-live",
  "risk_score": 0.81, "risk_label": "high"}
 ```
-- `_id` = `street_id`. Every street in `segments` gets a doc (bridges included; they can just be low).
+- `street_id` as its own field (the backend also accepts it as the part of `_id` after the last `|`).
+  Every street in `segments` gets a doc (bridges included; they can just be low).
 - One set per scenario: `"live"` (real forecast) and `"storm"` (fixed heavy rain, e.g. 50 mm in 3 h, for the demo).
   Suggest `_id` = `"<scenario>|<street_id>"` so both sets fit in one collection.
 - **`risk_label` is defined by ML** (decided 2026-09-26). ML's `risk_score` is a percentile ranking (a typical

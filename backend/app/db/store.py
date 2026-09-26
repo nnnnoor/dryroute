@@ -5,7 +5,7 @@ routing needs every segment anyway, and they only change when the pipeline is re
 data (closures; later users, trips, alerts) is read per request.
 
 - LocalStore: committed pipeline files (data-pipeline/data/processed) + backend/fixtures. No network.
-- Mongo mode: same interface backed by Atlas (added in db/mongo.py once we have credentials).
+- MongoStore (db/mongo.py): the same data from Atlas, plus ML's risk runs and live closures.
 """
 import json
 from datetime import datetime, timezone
@@ -61,17 +61,25 @@ class LocalStore(Store):
     # There is no ML job locally, so both scenarios get a fake run derived from the static score:
     # "live" is a dry day, "storm" is heavy rain. Always fresh, so they never go stale.
     def latest_risk_run(self, scenario):
-        run = FAKE_RUNS.get(scenario)
-        return {**run, "computed_at": datetime.now(timezone.utc)} if run else None
+        return fake_run(scenario)
 
     def risk_scores(self, run_id):
-        run = next((r for r in FAKE_RUNS.values() if r["_id"] == run_id), None)
-        if run is None:
-            return {}
-        streets = self.segments.drop_duplicates("street_id")
-        # No labels: the fake runs are derived from the static score, so the backend's cutoffs label them
-        return {s: {"risk_score": float(v), "risk_label": None}
-                for s, v in zip(streets["street_id"], run["transform"](streets["risk_score"]))}
+        return fake_scores(self.segments, run_id)
+
+
+def fake_run(scenario: str) -> dict | None:
+    run = FAKE_RUNS.get(scenario)
+    return {**run, "computed_at": datetime.now(timezone.utc)} if run else None
+
+
+def fake_scores(segments: gpd.GeoDataFrame, run_id: str) -> dict[str, dict]:
+    run = next((r for r in FAKE_RUNS.values() if r["_id"] == run_id), None)
+    if run is None:
+        return {}
+    streets = segments.drop_duplicates("street_id")
+    # No labels: the fake runs are derived from the static score, so the backend's cutoffs label them
+    return {s: {"risk_score": float(v), "risk_label": None}
+            for s, v in zip(streets["street_id"], run["transform"](streets["risk_score"]))}
 
 
 FAKE_RUNS = {
@@ -104,6 +112,7 @@ def _parse_closure(doc: dict) -> dict:
 
 
 def make_store(settings: Settings) -> Store:
-    if settings.data_backend == "local":
-        return LocalStore(settings)
-    raise NotImplementedError("DATA_BACKEND=mongo is not wired up yet; use DATA_BACKEND=local")
+    if settings.data_backend == "mongo":
+        from app.db.mongo import MongoStore  # pymongo connection only when asked for
+        return MongoStore(settings)
+    return LocalStore(settings)

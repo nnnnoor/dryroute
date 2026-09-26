@@ -1,7 +1,13 @@
-import pytest
-from fastapi.testclient import TestClient
+import os
 
-from app.main import app
+import pytest
+
+# Tests always run offline on the committed data, whatever backend/.env says
+os.environ["DATA_BACKEND"] = "local"
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session")
