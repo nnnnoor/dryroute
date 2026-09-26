@@ -8,6 +8,7 @@ from app.api import calendar, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
+from app.integrations.tomtom import TomTomTraffic
 from app.services.calendar_sync import CalendarService
 from app.services.flood_risk import RiskService
 from app.services.parking import ParkingService
@@ -32,7 +33,9 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     app.state.network = network
     app.state.risk = RiskService(store, settings)
-    app.state.planner = RoutePlanner(network, store, app.state.risk, settings)
+    traffic = TomTomTraffic(settings.tomtom_api_key, settings.traffic_timeout_s,
+                            settings.traffic_cache_minutes) if settings.tomtom_api_key else None
+    app.state.planner = RoutePlanner(network, store, app.state.risk, settings, traffic)
     app.state.parking = ParkingService(store, app.state.risk, settings)
     app.state.trips = TripPlanner(app.state.planner, app.state.parking, store)
     app.state.calendar = CalendarService(make_calendar_source(settings), store, app.state.trips, app.state.parking,
@@ -61,6 +64,7 @@ def health(request: Request):
         "status": "ok",
         "data_backend": s.settings.data_backend,
         "fake_calendar": s.settings.use_fake_calendar,
+        "traffic": "tomtom" if s.planner.traffic else "off (free-flow)",
         "segments": len(s.store.segments),
         "graph_nodes": s.network.G.number_of_nodes(),
         "graph_edges": s.network.G.number_of_edges(),

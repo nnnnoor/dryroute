@@ -4,6 +4,7 @@ import pytest
 
 # Tests always run offline on the committed data, whatever backend/.env says
 os.environ["DATA_BACKEND"] = "local"
+os.environ["TOMTOM_API_KEY"] = ""  # no real traffic calls; test_traffic.py fakes TomTom
 
 from fastapi.testclient import TestClient  # noqa: E402
 

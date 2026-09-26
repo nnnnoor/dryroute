@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     route_compromised_min_m: float = 200  # high-risk road on the usual route needed to call it compromised
     coverage_snap_m: float = 300        # a point farther than this from any mapped road is outside the area
 
+    # Traffic (optional). With a key, each chosen route's drive time comes from TomTom (live traffic now,
+    # predicted traffic for a future departure); without one, from speed limits (free-flow).
+    tomtom_api_key: str | None = None
+    traffic_timeout_s: float = 4.0
+    traffic_cache_minutes: float = 10   # same route in the same 10-min slot reuses the answer (free-tier quota)
+
     # Parking. hazard = static parking_score (floods when it rains) x factor for the current rain level.
     # No usable ML run -> factor 1.0 (assume rain), same as the roads' static fallback.
     parking_rain_factor: dict[str, float] = {"none": 0.4, "light": 0.6, "moderate": 0.8, "heavy": 1.0}

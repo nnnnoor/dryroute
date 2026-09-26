@@ -3,6 +3,9 @@
 Both routes avoid full closures and slow down through roadwork. The usual route is the fastest one,
 like a normal navigation app. The safe route pays for flood risk: each edge costs
 travel_time * (1 + route_risk_weight * risk), times route_high_risk_penalty if the edge is high risk.
+
+The roads are always chosen here, from speed limits and flood risk. With a TomTom key, each chosen
+route's drive time (ETA, leave-by) then comes from TomTom's traffic for that exact path.
 """
 import hashlib
 import math
@@ -13,6 +16,7 @@ import numpy as np
 
 from app.config import Settings
 from app.db.store import Store
+from app.integrations.tomtom import TomTomTraffic
 from app.services.flood_risk import LABEL_RANK, RiskService
 from app.services.road_graph import RoadNetwork
 from app.timeutil import iso_utc
@@ -35,11 +39,13 @@ def _worst_street(route: dict) -> str | None:
 
 
 class RoutePlanner:
-    def __init__(self, network: RoadNetwork, store: Store, risk: RiskService, settings: Settings):
+    def __init__(self, network: RoadNetwork, store: Store, risk: RiskService, settings: Settings,
+                 traffic: TomTomTraffic | None = None):
         self.G = network.G
         self.store = store
         self.risk = risk
         self.settings = settings
+        self.traffic = traffic  # None: drive times from speed limits only
 
         # Snap only to nodes in the largest strongly connected component, so any two snapped points
         # are routable (the bbox cut leaves some one-way dead ends at the edges).
@@ -154,7 +160,15 @@ class RoutePlanner:
             pts = [[round(x, 6), round(y, 6)] for x, y in segs.at[e, "geometry"].coords]
             coords.extend(pts[1:] if coords and coords[-1] == pts[0] else pts)
 
-        seconds = sum(ctx["time"][e] for e in edges)
+        route_id = "r_" + hashlib.sha1("|".join(edges).encode()).hexdigest()[:8]
+        free_flow = sum(ctx["time"][e] for e in edges)
+        seconds, traffic = free_flow, None
+        if self.traffic:
+            # For arrive_by, ask about the departure our own estimate implies (one call, close enough)
+            guess = arrive_by - timedelta(seconds=free_flow) if arrive_by else depart_at
+            traffic = self.traffic.travel_times(route_id, coords, guess)
+            if traffic:
+                seconds = traffic["traffic_s"]
         if arrive_by:
             arrive = arrive_by
             depart = arrive_by - timedelta(seconds=seconds)
@@ -182,10 +196,13 @@ class RoutePlanner:
         closures = list({c["closure_id"]: {"closure_id": c["closure_id"], "name": c["name"], "kind": c["kind"],
                                            "full_closure": c["full_closure"]} for c in on_route}.values())
         return {
-            "route_id": "r_" + hashlib.sha1("|".join(edges).encode()).hexdigest()[:8],
+            "route_id": route_id,
             "geometry": {"type": "LineString", "coordinates": coords},
             "distance_m": round(float(sum(segs.at[e, "length"] for e in edges))),
             "eta_minutes": round(seconds / 60, 1),
+            # "live_traffic" (now), "predicted_traffic" (future departure) or "free_flow" (speed limits)
+            "eta_source": ("live_traffic" if traffic["live"] else "predicted_traffic") if traffic else "free_flow",
+            "traffic_delay_minutes": round(traffic["delay_s"] / 60, 1) if traffic else None,
             "depart_at": iso_utc(depart),
             "arrive_at": iso_utc(arrive),
             "max_risk": round(float(max_risk), 3),

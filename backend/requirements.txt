@@ -18,9 +18,11 @@ pyarrow==25.0.1             # reads segments.parquet
 # MongoDB Atlas (DATA_BACKEND=mongo)
 pymongo==4.18.2
 
+# TomTom traffic (and FastAPI's TestClient)
+httpx==0.28.1
+
 # Timezones (Windows has no built-in timezone database)
 tzdata==2026.4
 
 # Tests
 pytest==9.1.1
-httpx==0.28.1               # used by FastAPI's TestClient

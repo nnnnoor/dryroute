@@ -101,6 +101,8 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
     "geometry": {"type": "LineString", "coordinates": [[-80.19, 25.76], [-80.37, 25.75]]},
     "distance_m": 21430,
     "eta_minutes": 27.5,
+    "eta_source": "live_traffic",
+    "traffic_delay_minutes": 6.2,
     "depart_at": "2026-09-26T12:25:00Z",
     "arrive_at": "2026-09-26T12:52:30Z",
     "max_risk": 0.81,
@@ -130,6 +132,10 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
   | `reroute_caution` | compromised; the safe route is better but still has ≥ 200 m | "The safer route avoids 1.9 km of flood-prone road but still crosses 1.6 km. Drive carefully (+1.2 min)." |
   | `no_alternative` | compromised; no different route exists | "No safer route: your trip has to cross 3.9 km of flood-prone road. Consider leaving later." |
 - `max_risk` / `risk_label`: the riskiest road on the route. `high_risk_m`: meters of high-risk road on it.
+- `eta_minutes`, `depart_at`, `arrive_at` include traffic when available. `eta_source`: `live_traffic` (leaving now),
+  `predicted_traffic` (a future `depart_at` / `arrive_by`) or `free_flow` (speed limits only: traffic unavailable,
+  so the time is optimistic). `traffic_delay_minutes`: minutes lost to traffic, `null` for `free_flow`.
+  The backend always chooses the roads (flood-aware); traffic only changes the times.
 - `closures`: closures on the route. Both routes already avoid full closures and slow down through roadwork.
 - `risk_segments`: only `medium`/`high` road pieces, in driving order (one entry per piece, so a long street can appear several times).
 - `same_route: true` means the usual route is already the safest; `safe` then equals `usual`.
