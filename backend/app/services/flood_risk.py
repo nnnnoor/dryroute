@@ -11,6 +11,7 @@ from shapely.geometry import box
 
 from app.config import Settings
 from app.db.store import Store
+from app.timeutil import iso_utc
 
 SCENARIOS = ("live", "storm")
 
@@ -74,7 +75,7 @@ class RiskService:
         run, stale = self.current_run()
         return {
             "scenario": self.scenario,
-            "computed_at": run["computed_at"] if run else None,
+            "computed_at": iso_utc(run["computed_at"]) if run else None,
             "stale": stale,
             "model_version": run["model_version"] if run and not stale else "static-baseline",
             "rain": run["rain"] if run else None,

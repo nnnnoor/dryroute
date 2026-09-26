@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     risk_stale_hours: float = 3       # older "live" ML runs fall back to the static score
     segments_risk_limit: int = 5000   # max features per /segments/risk response
 
+    # Routing. Safe-route edge cost = travel_time * (1 + route_risk_weight * risk),
+    # times route_high_risk_penalty on high-risk edges (discouraged, never forbidden).
+    route_risk_weight: float = 2.0
+    route_high_risk_penalty: float = 5.0
+    route_roadwork_factor: float = 1.5  # roadwork / planned construction: slower, still passable
+    route_compromised_min_m: float = 200  # high-risk road on the usual route needed to call it compromised
+    coverage_snap_m: float = 300        # a point farther than this from any mapped road is outside the area
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 

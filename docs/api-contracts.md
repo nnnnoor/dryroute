@@ -27,7 +27,7 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /health` | Server up + data loaded | ✅ built |
 | `GET /weather` | Rain used for risk right now | ✅ built |
 | `GET /segments/risk` | Road risk in a map box, for coloring the map | ✅ built |
-| `GET /routes` | Usual vs flood-safer route, + parking check | planned |
+| `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built (parking part: planned) |
 | `GET /parking` | FIU lots/garages with flood hazard | planned |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | planned |
 | `GET /alerts`, `POST /alerts/{alert_id}/read` | In-app alerts (poll every ~60 s) | planned |
@@ -98,6 +98,7 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
     "arrive_at": "2026-09-26T12:52:30Z",
     "max_risk": 0.81,
     "risk_label": "high",
+    "high_risk_m": 2416,
     "risk_segments": [
       {"segment_id": "123_456_0", "name": "Southwest 9th Street", "risk_score": 0.81, "risk_label": "high", "length_m": 140}
     ],
@@ -107,13 +108,16 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
   },
   "safe": { "...": "same shape as usual" },
   "same_route": false,
-  "comparison": {"extra_minutes": 3.4, "high_risk_segments_avoided": 4},
+  "comparison": {"extra_minutes": 1.2, "high_risk_m_avoided": 2113, "high_risk_segments_avoided": 15},
   "parking": null
 }
 ```
-- `compromised`: the usual route crosses high-risk road or a full closure.
-- `risk_segments`: only `medium`/`high` segments, in driving order.
+- `compromised`: the usual route has at least 200 m of high-risk road, or a full closure.
+- `max_risk` / `risk_label`: the riskiest road on the route. `high_risk_m`: meters of high-risk road on it.
+- `closures`: closures on the route. Both routes already avoid full closures and slow down through roadwork.
+- `risk_segments`: only `medium`/`high` road pieces, in driving order (one entry per piece, so a long street can appear several times).
 - `same_route: true` means the usual route is already the safest; `safe` then equals `usual`.
+- `comparison.high_risk_segments_avoided`: high-risk pieces of the usual route that the safe route skips.
 - `parking` is filled when `parking_id` is given:
 
 ```json
