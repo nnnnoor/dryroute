@@ -1,7 +1,8 @@
 data/
 .env
+.env.example
 __pycache__/
 .venv/
 .ipynb_checkpoints/
 cache/
-.env.example
+
