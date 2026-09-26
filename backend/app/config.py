@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     # Lots rated and shown on the map, but never suggested to a student as somewhere to park
     parking_not_suggested: list[str] = ["Unnamed", "Loading Area", "Staff", "Compound"]
 
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # Local frontend: Vite dev (5173) and `vite preview` (4173), as localhost or 127.0.0.1; 3000 for other setups
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173",
+                               "http://127.0.0.1:4173", "http://localhost:3000"]
 
 
 @lru_cache
