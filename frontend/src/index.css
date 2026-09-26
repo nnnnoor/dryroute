@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Arial, Helvetica, sans-serif;
+  --color-route-navy: #002347;
+  --color-route-gold: #bb8b27;
+}
+
+@layer base {
+  :root {
+    font-family: var(--font-sans);
+    color: #fff;
+    background: #051d3c;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: light;
+  }
+  body { min-width: 280px; }
+  #root { min-height: 100svh; }
+}

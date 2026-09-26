@@ -61,7 +61,7 @@ Flash flooding turns routine commutes into safety hazards, especially for studen
 ## Repository Structure
 
 ```
-dryroute/
+floodingdata/
 ├── README.md                  # this file
 ├── DATAREADME.md              # data pipeline: datasets, Mongo collections, how to rerun
 ├── .env.example               # (planned)
@@ -180,7 +180,8 @@ dryroute/
                      │   MongoDB (db: flood)    │
                      │ segments, closures,      │
                      │ parking, fiu_hotspots;   │
-                     │ users, routes, alerts, trips (planned) │
+                     │ planned: users, trips,   │
+                     │ alerts                   │
                      └───────────┬─────────────┘
                                  │
                                  ▼
@@ -210,8 +211,8 @@ Full data flow, sequence diagrams, and the finalized hosting decision will live 
 
 ### 1. Clone & configure environment
 ```bash
-git clone <repo-url>
-cd dryroute
+git clone https://github.com/nnnnoor/floodingdata.git
+cd floodingdata
 cp .env.example .env   # fill in API keys — see Environment Variables below
 ```
 
