@@ -13,7 +13,7 @@ import numpy as np
 
 from app.config import Settings
 from app.db.store import Store
-from app.services.flood_risk import RiskService, risk_label
+from app.services.flood_risk import LABEL_RANK, RiskService
 from app.services.road_graph import RoadNetwork
 from app.timeutil import iso_utc
 
@@ -70,6 +70,7 @@ class RoutePlanner:
             raise ValueError("Start and destination are at the same place on the map")
 
         risk = self.risk.edge_risk().reindex(self._edge_ids).to_numpy()
+        labels = self.risk.edge_labels().reindex(self._edge_ids).to_numpy()
         closures = self.store.active_closures()
         closed = {c["edge_id"] for c in closures if c["full_closure"]}
         slowed = {c["edge_id"] for c in closures if not c["full_closure"]}
@@ -77,12 +78,13 @@ class RoutePlanner:
         base = self._travel_time * np.array(
             [self.settings.route_roadwork_factor if e in slowed else 1.0 for e in self._edge_ids])
         safe = base * (1 + self.settings.route_risk_weight * risk)
-        safe = np.where(risk >= self.settings.risk_high, safe * self.settings.route_high_risk_penalty, safe)
+        safe = np.where(labels == "high", safe * self.settings.route_high_risk_penalty, safe)
 
         usual_path = self._shortest(origin, dest, self._costs(base, closed))
         safe_path = self._shortest(origin, dest, self._costs(safe, closed))
 
-        ctx = {"risk": dict(zip(self._edge_ids, risk)), "time": dict(zip(self._edge_ids, base)),
+        ctx = {"risk": dict(zip(self._edge_ids, risk)), "label": dict(zip(self._edge_ids, labels)),
+               "time": dict(zip(self._edge_ids, base)),
                "closures": {c["edge_id"]: c for c in closures}}
         usual = self._describe(usual_path, ctx, depart_at, arrive_by)
         safe_route = self._describe(safe_path, ctx, depart_at, arrive_by)
@@ -163,7 +165,7 @@ class RoutePlanner:
         risk_segments = []
         for e in edges:
             score = ctx["risk"][e]
-            label = risk_label(score, self.settings)
+            label = ctx["label"][e]
             if label != "low":
                 name = segs.at[e, "name"]
                 risk_segments.append({
@@ -174,6 +176,7 @@ class RoutePlanner:
                     "length_m": round(float(segs.at[e, "length"])),
                 })
         max_risk = max((ctx["risk"][e] for e in edges), default=0.0)
+        worst_label = max((ctx["label"][e] for e in edges), key=LABEL_RANK.get, default="low")
 
         on_route = [ctx["closures"][e] for e in edges if e in ctx["closures"]]
         closures = list({c["closure_id"]: {"closure_id": c["closure_id"], "name": c["name"], "kind": c["kind"],
@@ -186,7 +189,7 @@ class RoutePlanner:
             "depart_at": iso_utc(depart),
             "arrive_at": iso_utc(arrive),
             "max_risk": round(float(max_risk), 3),
-            "risk_label": risk_label(max_risk, self.settings),
+            "risk_label": worst_label,
             "high_risk_m": sum(s["length_m"] for s in risk_segments if s["risk_label"] == "high"),
             "risk_segments": risk_segments,
             "closures": closures,

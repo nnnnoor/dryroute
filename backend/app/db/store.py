@@ -29,8 +29,9 @@ class Store:
         """Newest risk_runs doc (written by the ML job) for "live" or "storm", or None."""
         raise NotImplementedError
 
-    def risk_scores(self, run_id: str) -> dict[str, float]:
-        """street_id -> risk_score for one ML run (risk_scores collection)."""
+    def risk_scores(self, run_id: str) -> dict[str, dict]:
+        """street_id -> {"risk_score": float, "risk_label": "low"|"medium"|"high"|None} for one ML run
+        (risk_scores collection)."""
         raise NotImplementedError
 
     def get_user(self, user_id: str = "demo") -> dict:
@@ -68,7 +69,9 @@ class LocalStore(Store):
         if run is None:
             return {}
         streets = self.segments.drop_duplicates("street_id")
-        return dict(zip(streets["street_id"], run["transform"](streets["risk_score"])))
+        # No labels: the fake runs are derived from the static score, so the backend's cutoffs label them
+        return {s: {"risk_score": float(v), "risk_label": None}
+                for s, v in zip(streets["street_id"], run["transform"](streets["risk_score"]))}
 
 
 FAKE_RUNS = {

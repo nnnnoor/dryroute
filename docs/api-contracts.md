@@ -10,9 +10,11 @@ here first, then in code. Live, interactive docs for whatever is already built: 
   Geometry in responses is **GeoJSON, so `[lon, lat]`** (Leaflet wants `[lat, lon]`: flip when drawing).
 - **Times:** ISO 8601 in **UTC** with `Z` (`2026-09-26T13:20:00Z`). The frontend converts to local time for display.
   Request params accept any ISO time with an offset.
-- **Risk:** `risk_score` is 0–1 (higher = more likely to flood **given the current/forecast rain**). Labels:
-  `low` < 0.35 ≤ `medium` < 0.6 ≤ `high`. Thresholds may be tuned; always color by `risk_label`, not the number.
-  Live scores come from the ML job (see [ML → backend](#ml--backend-risk_scores-collection)); the backend serves them as-is.
+- **Risk:** `risk_score` is 0–1 (higher = more flood-prone **given the current/forecast rain**). It's a relative
+  ranking, not a probability. **Always color and decide by `risk_label`** (`low | medium | high`), never by the number.
+  Live scores **and labels** come from the ML job (see [ML → backend](#ml--backend-risk_scores-collection)); the
+  backend serves them as-is. Only when there's no ML label does the backend fall back to its own cutoffs
+  (`low` < 0.35 ≤ `medium` < 0.6 ≤ `high` on the static score).
 - **IDs:** `segment_id` is a road edge id like `"99309740_99334400_0"`. `parking_id` is an OSM id like `"way/112768036"`.
 - **Users:** until Google login is wired up, every call acts as one demo user. Later, login sets a session cookie
   (send requests with `credentials: "include"`); no endpoint shapes change.
@@ -54,8 +56,9 @@ The rain inputs of the ML run whose scores are being served. `scenario` is `"liv
 
 ### `GET /segments/risk`
 
-Params: `west, south, east, north` (the visible map box, required), `min_risk` (default 0; send ~0.6 when
-zoomed out to the whole area: about 4,300 streets, 1.5 MB).
+Params: `west, south, east, north` (the visible map box, required), `min_label` (`low` = all streets, the
+default; `medium`; `high`). Send `high` when zoomed out to the whole area to keep the response small.
+Features are sorted riskiest first (by label, then score).
 Returns a GeoJSON FeatureCollection. The two directions of a two-way street are merged into one feature.
 
 ```json
@@ -77,7 +80,7 @@ Returns a GeoJSON FeatureCollection. The two directions of a two-way street are 
   ]
 }
 ```
-At most 5,000 features; `truncated: true` means zoom in or raise `min_risk`.
+At most 5,000 features; `truncated: true` means zoom in or raise `min_label`.
 
 ### `GET /routes`
 
@@ -242,7 +245,11 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 - `_id` = `street_id`. Every street in `segments` gets a doc (bridges included; they can just be low).
 - One set per scenario: `"live"` (real forecast) and `"storm"` (fixed heavy rain, e.g. 50 mm in 3 h, for the demo).
   Suggest `_id` = `"<scenario>|<street_id>"` so both sets fit in one collection.
-- `risk_label` uses the thresholds in Conventions above.
+- **`risk_label` is defined by ML** (decided 2026-09-26). ML's `risk_score` is a percentile ranking (a typical
+  street scores ~0.5 even on a dry day), so fixed cutoffs don't work; ML decides which scores mean
+  `low` / `medium` / `high` for each run. The backend uses the label for map colors, the safe route's
+  high-risk penalty and "compromised". `risk_score` is only used to order roads and to weigh the safe route.
+- A street with no `risk_label` (or a missing street) falls back to the backend's cutoffs.
 
 **`risk_runs`**: one doc per completed run, written **after** all its scores, so the backend never reads a half-written set.
 

@@ -19,11 +19,11 @@ def segments_risk(
     south: float = Query(..., ge=-90, le=90),
     east: float = Query(..., ge=-180, le=180),
     north: float = Query(..., ge=-90, le=90),
-    min_risk: float = Query(0.0, ge=0, le=1),
+    min_label: Literal["low", "medium", "high"] = "low",
 ):
     if west >= east or south >= north:
         raise HTTPException(400, "Box must have west < east and south < north")
-    features, truncated = request.app.state.risk.streets_in_box(west, south, east, north, min_risk)
+    features, truncated = request.app.state.risk.streets_in_box(west, south, east, north, min_label)
     return {"type": "FeatureCollection", "truncated": truncated, "features": features}
 
 

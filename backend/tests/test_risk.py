@@ -38,13 +38,44 @@ def test_segments_risk_box(client):
         assert -80.3 < lon < -80.1 and 25.7 < lat < 25.8  # GeoJSON order is [lon, lat]
 
 
-def test_segments_risk_min_risk_and_storm(client):
-    dry = client.get("/segments/risk", params={**BRICKELL, "min_risk": 0.6}).json()["features"]
+def test_segments_risk_min_label_and_storm(client):
+    dry = client.get("/segments/risk", params={**BRICKELL, "min_label": "high"}).json()["features"]
     assert dry == []  # a dry day has no high-risk roads
     client.post("/demo/scenario", json={"scenario": "storm"})
-    storm = client.get("/segments/risk", params={**BRICKELL, "min_risk": 0.6}).json()["features"]
+    storm = client.get("/segments/risk", params={**BRICKELL, "min_label": "high"}).json()["features"]
     assert len(storm) > 0
-    assert all(f["properties"]["risk_score"] >= 0.6 for f in storm)
+    assert all(f["properties"]["risk_label"] == "high" for f in storm)
+    medium_up = client.get("/segments/risk", params={**BRICKELL, "min_label": "medium"}).json()["features"]
+    assert len(medium_up) > len(storm)
+    assert {f["properties"]["risk_label"] for f in medium_up} == {"medium", "high"}
+
+
+def fake_ml_run(monkeypatch, store, run_id, score, label):
+    """Pretend ML wrote a run giving every street the same score and label."""
+    from datetime import datetime, timezone
+    run = {"_id": run_id, "scenario": "live", "computed_at": datetime.now(timezone.utc),
+           "model_version": "test", "rain": None}
+    streets = store.segments["street_id"].unique()
+    monkeypatch.setattr(store, "latest_risk_run", lambda scenario: run)
+    monkeypatch.setattr(store, "risk_scores", lambda rid: {s: {"risk_score": score, "risk_label": label}
+                                                           for s in streets})
+
+
+def test_ml_labels_override_backend_cutoffs(client, monkeypatch):
+    store = client.app.state.store
+    trip = {"from_lat": 25.7617, "from_lon": -80.1918, "to_lat": 25.7563, "to_lon": -80.3736}
+
+    # High score, but ML says low: nothing is high risk
+    fake_ml_run(monkeypatch, store, "ml-all-low", 0.9, "low")
+    feats = client.get("/segments/risk", params=BRICKELL).json()["features"]
+    assert {f["properties"]["risk_label"] for f in feats} == {"low"}
+    assert client.get("/routes", params=trip).json()["compromised"] is False
+
+    # Low score, but ML says high: every road is high risk
+    fake_ml_run(monkeypatch, store, "ml-all-high", 0.1, "high")
+    b = client.get("/routes", params=trip).json()
+    assert b["compromised"] is True
+    assert b["usual"]["risk_label"] == "high"
 
 
 def test_segments_risk_bad_box(client):
