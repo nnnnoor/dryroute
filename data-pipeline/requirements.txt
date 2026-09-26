@@ -1,0 +1,17 @@
+osmnx>=2.0
+geopandas
+shapely>=2.0
+pyproj
+pyarrow
+rasterio
+rioxarray
+rasterstats
+py3dep
+pysheds
+requests
+pandas
+pymongo
+python-dotenv
+matplotlib
+folium
+ipykernel
