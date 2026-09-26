@@ -85,3 +85,24 @@ UCC_MAX_WINDOW_DAYS = 730    # longer windows are multi-year program spans (FDOT
 # FDOT entries in Utility Coordination carry fiscal-year windows (Jul 1 -> Jun 30), not work dates, and
 # FDOT's actual lane/road closures come from FL511. So FDOT is taken from FL511 only.
 UCC_EXCLUDE_AGENCIES = ["FDOT"]
+
+# Step 12: FIU (Modesto Maidique campus) parking + flood hotspots, on a 1 m 3DEP DEM
+FIU_NAME = "Florida International University"   # OSM amenity=university polygon name
+FIU_AREA = (-80.395, 25.745, -80.360, 25.770)   # OSM search window around MMC (west, south, east, north)
+FIU_DEM_BUFFER_M = 300                          # 1 m DEM extends this far past campus so edge dips drain out
+POND_MIN_DEPTH_M = 0.10       # a lot cell "ponds" if its fill depth is >= this
+HOTSPOT_MIN_DEPTH_M = 0.15    # campus hotspot polygons: cells at least this deep ...
+HOTSPOT_MIN_AREA_M2 = 50      # ... in connected areas at least this big
+PARKING_ACCESS_M = 25         # drive edges within this distance of a lot count as its access roads
+# parking_score = weighted mean of 0-1 components (fixed ranges, clipped); higher = worse
+PARKING_WEIGHTS = {"pond_frac": 0.35, "pond_depth_p90": 0.20, "freeboard_p10_m": 0.20, "access_risk_min": 0.25}
+PARKING_RANGE = {"pond_frac": (0, 0.5), "pond_depth_p90": (0, 0.5), "freeboard_p10_m": (0.5, -1.0),  # inverted
+                 "access_risk_min": (0, 1)}
+MONGO_PARKING = "parking"
+MONGO_HOTSPOTS = "fiu_hotspots"
+# 1 m DEM water: hydro-flattened lake/canal surfaces sit at 0.1-0.4 m, land starts ~0.9 m (histogram trough
+# 0.6-0.8 m). Water cells (plus OSM water polygons, >= FIU_WATER_MIN_AREA_M2) are drain outlets in the fill,
+# so ponding = depressions that don't drain to a lake/canal (FIU's lakes are stormwater retention).
+FIU_WATER_MAX_ELEV_M = 0.7
+FIU_WATER_MIN_AREA_M2 = 20
+PARKING_ACCESS_FALLBACK_M = 200   # lots with no drive edge within PARKING_ACCESS_M: nearest edge within this

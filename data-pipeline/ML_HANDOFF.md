@@ -41,6 +41,7 @@ rows and leaks across a random split.
 | `elev_mean`, `elev_min`, `elev_p10` | Ground elevation along edge, m NAVD88 (USGS 3DEP 10 m, bare earth) | `elev_p10` is the most robust. Motorway embankments read up to ~12 m |
 | `elev_water_only` | Edge sits entirely on water in the DEM | Currently all False |
 | `sink_depth`, `sink_p90` | How deep water can pond before spilling (filled DEM − DEM), m | `sink_p90` is the most robust; max can hit single lake/pit pixels |
+| `flood_criteria_m`, `freeboard_p10_m`, `below_criteria_frac` | Miami-Dade 2060 design flood level (10-yr/24-hr storm + sea-level rise) and how far the road's ground sits above it (m; negative = below) | Most roads are below (it's a future standard), so use the magnitude. Within a jurisdiction it's about as predictive as `elev_p10` (AUC ~0.59 city / 0.66 county) and only partly correlated (0.46) |
 | `drain_count` | Storm inlets within 50 m | **0 can mean "not inventoried"** (Coral Gables / Grove / south Little Havana are sparse) |
 | `drains_per_100m` | `drain_count / length × 100` | Inflated on short edges; prefer `drain_count` |
 | `jurisdiction` | `city` (City of Miami) or `county` | **Include as a feature**: reporting rates differ a lot |

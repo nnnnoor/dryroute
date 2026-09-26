@@ -2,6 +2,8 @@
 
 ## Project context
 
+**Focus (2026-09-26): FIU students driving to Modesto Maidique Campus** (flooded routes + where to park). See Step 12. Open issue for the team: the bbox ends ~0.5 km west of campus and at SW 40th St, so commutes from Kendall/Doral/Sweetwater/Westchester start outside it; expanding it changes every `edge_id`.
+
 We're building a **flood-aware routing app for South Florida** at ShellHacks (team project, hackathon timeline).
 App features: saved commutes, flood-risk alerts, alternate routes around flood-prone roads, a predictive flood model, and a dashboard.
 Target challenges: Waymo Mobility, Auto Insurance, MongoDB Atlas, Microsoft.
@@ -66,7 +68,9 @@ data-pipeline/
 │   ├── 07_lowpoints.py   # optional
 │   ├── 08_build_segments.py
 │   ├── 09_load_mongo.py
-│   └── 10_closures.py    # live closures -> Mongo `closures` (rerun often)
+│   ├── 10_closures.py    # live closures -> Mongo `closures` (rerun often)
+│   ├── 11_flood_criteria.py
+│   └── 12_fiu_parking.py  # FIU MMC lots/garages + ponding hotspots (1 m DEM) -> Mongo
 └── notebooks/checks.ipynb
 ```
 
@@ -269,6 +273,25 @@ Added 2026-09-26 (user request: "active road closures"). Time-varying, so it is 
 - **Backend use:** active = `{"start": {"$lte": now}, "$or": [{"end": {"$gte": now}}, {"end": null}]}`. Suggested: `full_closure` → drop the edge from the routing graph; roadwork / planned_construction → a time penalty.
 - **Current (county only):** 672 construction-phase records in bbox → 10 kept (124 FDOT, 66 complete/closed, 552 ended, 232 windows > 2 yr; overlapping) → 5 projects on 26 edges (2.6 km): NW 62 Ave, SW 1st St water main, SW 114th Ave, SW 11 St, NW 57 Ct. Each matched its named street plus short cross-street stubs at the ends.
 
+### Step 11 — County Flood Criteria freeboard (feature, not scored)
+Added 2026-09-26 (GIS gap list item: groundwater / design flood level).
+- **Source:** Miami-Dade "County Flood Criteria 2022", the minimum required elevation (ft NAVD88) of developed land and **road crowns** for a 10-yr / 24-hr storm in the **2060 sea-level-rise** scenario (effective 2022-10-28). Raster: official zip `https://giswspro.miamidade.gov/opendata/flood/2022/CountyFloodCriteria.zip` (linked from the ArcGIS item "County Flood Criteria 2022 - Raster", MDPublisher). File Geodatabase raster, EPSG:2236 (US ft), 100 ft cells; GDAL 3.12 reads it directly (`rasterio.open(".../CountyFloodCriteria.gdb")`). Cached in `data/raw/flood_criteria/`.
+  - Validated against the county contour layer `CountyFloodCriteria_gdb/FeatureServer/0` (13 lines, `ELEV` 7–19 ft in bbox): the raster reads 7.16 / 11.00 / 16.88 ft on the 7 / 11 / 16 ft contours. Bbox values 6–20 ft (median 7.3 ft = 2.24 m); ~10% of cells are nodata (water).
+- **Method:** sample the criteria raster and `dem.tif` at the same points (Step 3 sampler), convert US ft → m, freeboard = ground − criteria per point.
+- **Output** `features/flood_criteria.parquet`: `flood_criteria_m` (mean), `freeboard_p10_m` (10th pct of ground − criteria; negative = below the 2060 design level), `below_criteria_frac`. Check plot `data/checks/flood_criteria.png`.
+- **Current:** 2 nulls (Venetian Way bridge over the bay). Median freeboard −0.37 m; 94% of non-bridge edges are partly below (the criteria is a *new-construction 2060* standard, so the magnitude is the signal, not below/above). Median by FEMA level 1/2/3: −0.31 / −0.44 / −0.47. Extremes: < −2 m on 282 non-bridge edges (Miami River-front roads picking up the dredged channel in the DEM, like Step 3's water pixels) + 127 bridges; up to +7.5 m on embankments/overpasses.
+- **Signal check** (AUC for "edge has ≥ 1 flood report day", non-bridge): all edges: freeboard 0.615 vs `elev_p10` 0.531; within city 0.587 vs 0.583, within county 0.659 vs 0.653. So most of the overall gain is between jurisdictions; within one it's about as strong as elevation, and only partly overlapping (corr 0.46). **Not scored** in `risk_score` (would double count elevation); an ML feature.
+
+### Step 12 — FIU parking + campus ponding hotspots (1 m DEM)
+Added 2026-09-26. **Project focus: students driving to FIU Modesto Maidique Campus (MMC).** Terrain-based exposure: 311 does **not** cover campus (FIU runs its own grounds; 0 reports on the 225 campus-adjacent edges, 26 within 1 km), so nothing here is observed flooding.
+- **Inputs:** OSM campus polygon (`amenity=university`, name `config.FIU_NAME`, 1.41 km²) and 46 on-campus parking polygons (38 surface, 7 garages = `parking=multi-storey`, 1 street-side); **1 m USGS 3DEP** bare-earth DEM (available here; checked with `py3dep.check_3dep_availability`) for campus + 300 m → `data/raw/fiu_dem_1m.tif`; FEMA zones (Step 2); flood criteria raster (Step 11); `segments` risk for access roads.
+- **Water handling (important):** hydro-flattened lake/canal surfaces sit at 0.1–0.4 m, land from ~0.9 m (histogram trough 0.6–0.8 m). Water = DEM < `FIU_WATER_MAX_ELEV_M` (0.7) ∪ OSM water polygons, components ≥ 20 m² (3.9% of the DEM). Depression fill is done with `skimage.morphology.reconstruction` with **the raster edge and water cells as outlets**, and depth is 0 on water. Without this, lakes filled to their banks and showed as 1.5–2 m "hotspots" (first run: 23% of campus). FIU's lakes are stormwater retention tied to the canals, so treating them as drains is the realistic choice. (Step 7's 10 m sink map does not do this; lakes there show as deep sinks.)
+- **Per lot** (`data/processed/fiu_parking.geojson`, Mongo `flood.parking`, `_id` = OSM id): `elev_p10`, `elev_median`, `pond_frac` (share of 1 m cells ponding ≥ 0.10 m), `pond_depth_p90`, `pond_depth_max`, `flood_criteria_m`, `freeboard_p10_m`, `fema_zone`, `in_sfha`, access roads (non-bridge drive edges within 25 m; interior lots whose aisles aren't in the drive graph take the nearest edge within 200 m: `access_method` adjacent|nearest), `access_risk_min/max`, `access_roads`, and **`parking_score`** = weighted mean of fixed-range components (`config.PARKING_WEIGHTS/RANGE`: pond_frac 0.35 [0–0.5], pond_depth_p90 0.20 [0–0.5 m], freeboard 0.20 [+0.5 → −1.0 m], access_risk_min 0.25). Garages: the bare-earth DEM reads the ground under them, i.e. their ground-level entrance exposure (upper decks stay dry).
+- **Hotspots** (`data/processed/fiu_hotspots.geojson`, Mongo `flood.fiu_hotspots`): connected areas with depth ≥ 0.15 m and ≥ 50 m², minus those > 50% under an OSM building footprint (the DEM interpolates under buildings; 4 dropped). Fields: `area_m2, depth_max_m, depth_mean_m, lots, roads, building_frac`.
+- **Current:** no nulls; `parking_score` 0.11–0.74 (median 0.33). Garages median 0.17 (all 0.11–0.25; Gold and Blue best, 0.11/0.12), surface lots median 0.36. Worst: North of University Towers (0.74, 85% of the lot ponds), Arena Loading Area, an unnamed lot off SW 11th St, W10, W7, Greek Housing. 166 hotspots, 123,890 m² (~9% of campus), max depth 0.96 m, mostly lawns/courtyards; 41 touch lots (largest: Greek Housing lot, 6,236 m², 0.59 m), 12 touch roads (SW 109th Ave, SW 112th Ave, SW 14th St, East Campus Circle, University Drive).
+- **Bug fixed during the build:** lot stats were first assigned by index onto a filtered frame (misaligned rows); the lot frame is now `reset_index(drop=True)` before positional joins.
+- **Limits:** depressions measure storage before spill, not flood depth (exfiltration/french drains remove water); no campus ground truth; OSM lot outlines/names may lag reality.
+
 ---
 
 ## Priority / timeline
@@ -290,3 +313,5 @@ Added 2026-09-26 (user request: "active road closures"). Time-varying, so it is 
 - [x] Step 8 — Build segments (FEMA + elevation + 311 + sinks scored, drains unscored; rerun after each new layer)
 - [x] Step 9 — Load to Atlas (FEMA + elevation + 311 + drains + sinks; rerun after each new layer + Step 8)
 - [x] Step 10 — Road closures (county planned construction live in Mongo `closures`; FL511 coded + selftested, needs `FL511_API_KEY`)
+- [x] Step 11 — Flood criteria freeboard (unscored feature; in Atlas)
+- [x] Step 12 — FIU parking + hotspots (Mongo `parking`, `fiu_hotspots`)
