@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+httpx
+osmnx>=2.0
+networkx
+geopandas
+shapely>=2.0
+pandas
+pyarrow
+pymongo
+python-dotenv
+pytest
