@@ -27,8 +27,8 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /health` | Server up + data loaded | ✅ built |
 | `GET /weather` | Rain used for risk right now | ✅ built |
 | `GET /segments/risk` | Road risk in a map box, for coloring the map | ✅ built |
-| `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built (parking part: planned) |
-| `GET /parking` | FIU lots/garages with flood hazard | planned |
+| `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built |
+| `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | planned |
 | `GET /alerts`, `POST /alerts/{alert_id}/read` | In-app alerts (poll every ~60 s) | planned |
 | `GET /dashboard` | Personal stats | planned |
@@ -139,16 +139,22 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
               "hazard_score": 0.74, "hazard_label": "high", "center": [-80.3763, 25.7551]},
   "hazardous": true,
   "alternatives": [
-    {"parking_id": "way/…", "name": "Gold Parking Garage", "type": "garage",
-     "hazard_score": 0.11, "hazard_label": "low", "center": [-80.37, 25.75], "distance_from_planned_m": 420}
+    {"parking_id": "way/513972395", "name": "Parkview Parking Deck", "type": "garage",
+     "hazard_score": 0.193, "hazard_label": "low", "center": [-80.377255, 25.754714], "distance_from_planned_m": 103}
   ]
 }
 ```
-When `hazardous` is true, draw the route to the first alternative with a second `/routes` call (`parking_id` = its id).
+- `hazard_score`: the lot's flood exposure scaled by the current rain (dry day → every lot is low).
+- `hazardous`: the planned lot is `high`. Then `alternatives` lists up to 3 `low` lots, **garages first**
+  (upper decks stay dry), then closest to the planned lot. Otherwise `alternatives` is `[]`.
+  Unnamed, loading-area, staff, compound and private lots are never suggested.
+- When hazardous, `recommendation.message` also ends with e.g. "W10 Parking Lot may flood. Park at Panther
+  Parking Garage instead (426 m away)."
+- The route still goes to the planned lot. To draw the route to an alternative, call `/routes` again with its `parking_id`.
 
 ### `GET /parking`
 
-Params: `at` (optional). Returns every FIU lot/garage:
+No params. Returns every FIU lot/garage with its hazard right now (for the map):
 ```json
 [{"parking_id": "way/112768036", "name": "…", "type": "garage | surface | street_side",
   "hazard_score": 0.74, "hazard_label": "high", "center": [-80.3763, 25.7551],

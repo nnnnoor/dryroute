@@ -35,6 +35,13 @@ def routes(
             raise HTTPException(400, f"{name} needs a timezone, e.g. 2026-09-26T13:00:00Z")
 
     try:
-        return state.planner.plan(from_lat, from_lon, to_lat, to_lon, depart_at, arrive_by)
+        result = state.planner.plan(from_lat, from_lon, to_lat, to_lon, depart_at, arrive_by)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+    if parking_id is not None:
+        result["parking"] = state.parking.assess(parking_id)
+        extra = state.parking.message(result["parking"])
+        if extra:
+            result["recommendation"]["message"] += " " + extra
+    return result

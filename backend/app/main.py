@@ -4,10 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import risk, routes
+from app.api import parking, risk, routes
 from app.config import get_settings
 from app.db.store import make_store
 from app.services.flood_risk import RiskService
+from app.services.parking import ParkingService
 from app.services.road_graph import RoadNetwork
 from app.services.route_planner import RoutePlanner
 
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
     app.state.network = network
     app.state.risk = RiskService(store, settings)
     app.state.planner = RoutePlanner(network, store, app.state.risk, settings)
+    app.state.parking = ParkingService(store, app.state.risk, settings)
     yield
 
 
@@ -36,6 +38,7 @@ app.add_middleware(
 )
 app.include_router(risk.router)
 app.include_router(routes.router)
+app.include_router(parking.router)
 
 
 @app.get("/health")

@@ -24,5 +24,6 @@ No `.env` needed locally: by default it runs on the committed pipeline data
 - `app/services/road_graph.py`: routing graph from `graph.graphml` (edge ids = segment ids)
 - `app/services/flood_risk.py`: live risk per road, read from the ML job's `risk_scores` (static score as fallback)
 - `app/services/route_planner.py`: usual vs flood-safer route on the graph (closures + risk-weighted costs)
-- `app/api/`: endpoints (`risk.py`: `/weather`, `/segments/risk`, `/demo/scenario`; `routes.py`: `/routes`)
+- `app/services/parking.py`: FIU lot flood hazard (scaled by rain) and safer alternatives
+- `app/api/`: endpoints (`risk.py`: `/weather`, `/segments/risk`, `/demo/scenario`; `routes.py`: `/routes`; `parking.py`: `/parking`)
 - `fixtures/`: fake data in the same shape as the real sources

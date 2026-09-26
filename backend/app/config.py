@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     route_compromised_min_m: float = 200  # high-risk road on the usual route needed to call it compromised
     coverage_snap_m: float = 300        # a point farther than this from any mapped road is outside the area
 
+    # Parking. hazard = static parking_score (floods when it rains) x factor for the current rain level.
+    # No usable ML run -> factor 1.0 (assume rain), same as the roads' static fallback.
+    parking_rain_factor: dict[str, float] = {"none": 0.4, "light": 0.6, "moderate": 0.8, "heavy": 1.0}
+    parking_alternatives: int = 3
+    # Lots rated and shown on the map, but never suggested to a student as somewhere to park
+    parking_not_suggested: list[str] = ["Unnamed", "Loading Area", "Staff", "Compound"]
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 
