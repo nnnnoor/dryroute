@@ -1,4 +1,30 @@
+# Virtual environment
 .venv/
+venv/
+
+# Secrets (the template .env.example is committed)
 .env
+.env.*
+!.env.example
+
+# Python caches and build files
 __pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test / tool caches
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+.idea/
