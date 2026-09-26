@@ -3,6 +3,7 @@
 Outputs:
   data/processed/segments.parquet   roads columns + all feature columns + risk_score, score_note (EPSG:4326)
   data/checks/segments_risk.png     roads colored by risk_score
+  data/checks/risk_components.png   histogram of each 0-1 scaled score component
 """
 import sys; from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -28,7 +29,11 @@ def load_features(segs):
     return segs
 
 
-def scale(col):
+def scale(col, segs):
+    if col.name in config.RISK_PCT_WITHIN:  # 0 -> 0; > 0 -> percentile among > 0 edges in the group
+        group = segs[config.RISK_PCT_WITHIN[col.name]]
+        pct = col.where(col > 0).groupby(group).rank(method="average", pct=True)
+        return pct.fillna(0.0).where(col.notna())
     if col.name in config.RISK_FIXED_RANGE:
         lo, hi = config.RISK_FIXED_RANGE[col.name]
     else:
@@ -39,11 +44,11 @@ def scale(col):
 
 def risk_score(segs):
     used = {c: w for c, w in config.RISK_WEIGHTS.items() if c in segs.columns}
-    parts = pd.DataFrame({c: scale(segs[c]) for c in used})
+    parts = pd.DataFrame({c: scale(segs[c], segs) for c in used})
     w = pd.Series(used)
     weight_present = parts.notna().mul(w).sum(axis=1)  # renormalize over features each row has
     score = parts.mul(w).sum(axis=1) / weight_present
-    return score.where(weight_present > 0), used
+    return score.where(weight_present > 0), used, parts
 
 
 def main():
@@ -53,9 +58,11 @@ def main():
 
     fill = [c for c in config.FILL_ZERO if c in segs.columns]
     segs[fill] = segs[fill].fillna(0)
-    segs["risk_score"], used = risk_score(segs)
+    segs["risk_score"], used, parts = risk_score(segs)
     # final override: FEMA/DEM describe the ground under a bridge deck, not the deck
     segs["score_note"] = pd.Series(None, index=segs.index, dtype="string")
+    if "elev_water_only" in segs.columns:  # elevation not scored: edge sits on water in the DEM
+        segs.loc[segs["elev_water_only"], "score_note"] = "elev_water_only"
     bridge = segs["is_bridge"]
     segs.loc[bridge, "risk_score"] = segs.loc[bridge, "risk_score"].clip(upper=config.BRIDGE_RISK_CAP)
     segs.loc[bridge, "score_note"] = "bridge_capped"
@@ -83,6 +90,20 @@ def main():
           f"{(streets['risk_score'] == top).sum()}")
     print("Top 20 streets (ties broken by length):\n"
           + streets.head(20).round({"risk_score": 3, "length_m": 0}).to_string())
+
+    print("\nScaled components (0-1, before weighting):")
+    for c in parts:
+        p = parts[c]
+        print(f"  {c:<18} min {p.min():.3f}  median {p.median():.3f}  max {p.max():.3f}  "
+              f"at 0: {(p == 0).mean():.1%}  at 1: {(p == 1).mean():.1%}  distinct {p.nunique()}")
+    fig, axes = plt.subplots(1, parts.shape[1], figsize=(5 * parts.shape[1], 3.5), squeeze=False)
+    for ax, c in zip(axes[0], parts):
+        ax.hist(parts[c].dropna(), bins=50, range=(0, 1))
+        ax.set_title(f"{c} (weight {used[c]})" + (" [inverted]" if c in config.RISK_INVERT else ""))
+        ax.set_xlabel("scaled score component"); ax.set_ylabel("edges")
+    fig.tight_layout()
+    fig.savefig(config.CHECKS / "risk_components.png", dpi=120)
+    print(f"Saved {config.CHECKS / 'risk_components.png'}")
 
     fig, ax = plt.subplots(figsize=(14, 6))
     segs.sort_values("risk_score").plot(ax=ax, column="risk_score", cmap="YlOrRd", linewidth=0.5,

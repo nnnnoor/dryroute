@@ -1,7 +1,14 @@
-data/
+# secrets: never commit (see .env.example)
 .env
+.env.*
+!.env.example
+
+# data: only data/processed/ is committed (graph.graphml, segments.parquet, roads.parquet)
+data/raw/
+data/features/
+data/checks/
+
 __pycache__/
 .venv/
 .ipynb_checkpoints/
 cache/
-

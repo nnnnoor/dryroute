@@ -37,7 +37,7 @@ Target challenges: Waymo Mobility, Auto Insurance, MongoDB Atlas, Microsoft.
 - **Graph recipe is frozen:** the graph comes only from `build_graph()` in `pipeline/01_roads.py`. **Any change to it (bbox, network_type, simplification, OSM data refresh) changes every `edge_id`.** That breaks routing (the team's `graph.graphml`) and Mongo (`_id`), and means rerunning every step from 01 onward. Coordinate with the team before touching it. OSMnx caches Overpass responses in `cache/` (gitignored), so reruns reproduce the same graph; deleting `cache/` fetches fresh OSM data and can change IDs.
 - **Street key:** `street_id` groups the two directions of a two-way street (built in Step 1, see there). Features stay per `edge_id`; any dashboard or summary stat aggregates by `street_id`.
 - Each feature layer writes `data/features/<layer>.parquet` with columns `edge_id` + its new columns only. Step 8 merges them.
-- Raw downloads go in `data/raw/` and are never committed.
+- Raw downloads go in `data/raw/` and are never committed. Only `data/processed/` is committed (the team uses `graph.graphml` / `segments.parquet` from git); `data/features/` and `data/checks/` are regenerated.
 - Secrets live in `.env` (`MONGO_URI=...`), loaded with `python-dotenv`.
 
 ## Repo structure
@@ -47,7 +47,7 @@ data-pipeline/
 ├── CLAUDE.md
 ├── .env                  # MONGO_URI=...  (gitignored)
 ├── .env.example          # template for .env
-├── .gitignore            # data/, .env, __pycache__/, .venv/, .ipynb_checkpoints/, cache/
+├── .gitignore            # .env, data/raw|features|checks/, __pycache__/, .venv/, .ipynb_checkpoints/, cache/
 ├── cache/                # OSMnx Overpass response cache (gitignored)
 ├── requirements.txt
 ├── config.py
@@ -98,6 +98,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 Or without activating: `.venv/Scripts/python -m pip install -r requirements.txt` (Windows).
+`data/processed/` is committed; `data/raw|features|checks/`, `cache/` and `.venv/` are not, so only someone changing the pipeline reruns 01 → 02 → 08 (→ 09). Rebuilt on a second machine: identical counts (Step 1 + FEMA levels), so edge_ids are stable while OSM is unchanged.
 If `rasterio`/`geopandas` fail to install on Windows, fall back to `conda install -c conda-forge geopandas rasterio` (not needed on 3.13.3 so far).
 
 ## config.py
@@ -166,8 +167,15 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - Sample ~5 evenly spaced points per edge with rasterio (`src.sample`)
 - Output `features/elevation.parquet`: `edge_id, elev_mean, elev_min` (meters)
 - **Verify:** value range is plausible for Miami (roughly 0–5 m, no huge negatives or nodata values), map colored by `elev_min`
+  - **Sampling (approved change from "~5 points"):** one sample every `config.ELEV_SAMPLE_M` (10 m, the DEM resolution) along the edge, minimum 5, both ends included, so long edges don't skip dips (463k samples, median 10/edge). `dem.tif` is downloaded once (~2 min); delete it to refresh. DEM is EPSG:5070 (read from file), meters NAVD88, bare earth.
+  - Output adds **`elev_p10`**: 10th percentile of the edge's samples (linear interpolation). **Scoring uses `elev_p10`, not `elev_min`** (Step 8). `elev_min` stays as a column. Reason: min takes the single lowest pixel, so edges ending at a bridge picked up water pixels (~−0.5 m) and topped the ranking.
+  - **Water-only rule:** a non-bridge edge whose samples are *all* < 0 m sits on water in the DEM: `elev_p10` = null (elevation not scored; weights renormalize to FEMA) and `elev_water_only` = True; Step 8 sets `score_note = "elev_water_only"`. Currently catches **0 edges** (6 bridge edges are all-water, unaffected). Grove Isle Dr doesn't qualify: 2 of its 5 samples are −0.32, 3 are +0.96. Decision: keep the 0.5 m floor and leave the remaining top ties (incl. Grove Isle Dr, E Fairview St) to Step 5 (311 reports).
+  - Current: 0 nulls, 0 nodata. `elev_min` median 2.17 m (1st–99th pct 0.58–4.84); `elev_p10` median 2.20 (0.68–4.93). Pattern matches the Miami Rock Ridge (high through Brickell/Grove/Gables; low around FIU, airport, Miami River). Median `elev_min` falls with FEMA risk: X-minimal 2.62, X-0.2% 1.96, AH 1.64, AE 1.12, VE 0.73.
+  - Outliers, left as-is: 31 edges with `elev_mean` > 10 m (max 12.8) are all motorway embankments/interchange ramps (real fill). 23 edges with `elev_min` < 0: 19 are bridges reading water (~−0.5, capped in Step 8), 4 are Grove Isle approach edges. With p10, Fair Isle St drops to street rank 83, but Grove Isle Dr (12.6 m edge, all 5 samples on water, p10 −0.32) and E Fairview St / S Bayshore Ln (bayfront, p10 0.09) still score 1.0.
 
 ### Step 4 — % impervious
+> **SKIPPED for now (decided 2026-09-26).** Low value here: nearly the whole study area is heavily paved, so it barely separates roads, and it overlaps with the city 311 signal. Needs a manual NLCD download. `risk_score` renormalizes over present features, so nothing depends on it. Revisit if the ML model wants it as an input feature.
+
 - **Manual step (me):** download NLCD Impervious (latest year), clipped to bbox, from the MRLC Data Viewer → `data/raw/nlcd_imperv.tif`. Ask me if it's not there.
 - Buffer edges 15 m in UTM, reproject buffers to the raster's CRS (NLCD is Albers, EPSG:5070 — read it from the file, don't assume)
 - `rasterstats.zonal_stats(..., stats=["mean"])`
@@ -177,10 +185,28 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 ### Step 5 — 311 flood reports
 - Source: Miami-Dade and/or City of Miami 311 service requests (open data portals). **Ask me for the dataset URL** if not confirmed.
 - First list distinct request types and show them to me. We pick the flood-related ones together (flooding, standing water, drainage, etc.).
+  - **Endpoints confirmed 2026-09-26** (resolved via the ArcGIS items API, tested):
+    - City of Miami, "City of Miami 311 Service Requests Since 2015" (owner CityMiamiFL): `https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/City_of_Miami_311_Service_Requests_Since_2015/FeatureServer/0`. Points; bbox envelope query works. 59,946 in bbox, but created dates only 2022-10-01 → 2024-08-10 despite the title. `issue_type` is a code (e.g. `COMPWSF`), meaning in `issue_Description`.
+    - Miami-Dade County, yearly: `https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/data_311_{YEAR}/FeatureServer/0` for 2013–2023 (owner MDPublisher). **Tables, no geometry**: filter on `latitude`/`longitude` in `where` (envelope is ignored). ~37k–46k in bbox per year. `issue_type` is plain text. No 2024+ service exists.
+    - Unusable: MDC `311_Service_Request/FeatureServer/0` exposes only `OBJECTID`.
+    - Location/CRS (checked on samples): city geometry is Web Mercator (wkid 102100), returned as 4326 with `outSR=4326`; both sources carry `latitude`/`longitude` (WGS84) and State Plane FL East **EPSG:2236 ft** X/Y (`x_coordinate`/`y_coordinate` city, `sr_xcoordinate`/`sr_ycoordinate` county), matching lat/lon projected to 2236 within 0.2 ft. Use lat/lon. Missing/zero lat-lon: city 39 of 88k; county 2,292 (2023) / 2,493 (2022), of which only 87 / 70 fall in the bbox via their X/Y (recoverable, small).
+    - Possible coverage gap (unverified): other municipalities in the bbox (Coral Gables, Sweetwater, West Miami) may route drainage complaints to their own systems. Check the spatial spread of the chosen types before trusting counts there.
+  - Type counts in bbox saved to `data/checks/311_request_types.csv` (all 295 types, city vs county) and `data/checks/311_city_types.csv` (city code → description).
 - Filter to bbox, build points, `gpd.sjoin_nearest` in UTM with `max_distance=30`
 - **Exclude `is_bridge` edges from the snapping candidates**, so ground-level reports attach to ground-level roads, not decks overhead. Bridge edges get 0 reports.
-- Output `features/reports_311.parquet`: `edge_id, flood_reports_311` (count)
+- Output `features/reports_311.parquet`: `edge_id, flood_report_days, drain_issue_days, jurisdiction` (see Implemented)
 - **Verify:** folium map of the report points plus count histogram
+- **Implemented (types/years chosen 2026-09-26; all settings in `config.py`):**
+  - Scored → `flood_report_days`: city `COMPWSF` (STORM FLOOD/ DRAINAGE), county `FLOODING / STANDING WATER - LOCALIZED`. Not scored → `drain_issue_days`: county `DRAIN CLOGGED / CLEANING`, `DRAIN - REPAIR`, `RER DRAINAGE CANALS FLOOD COMPLAINT`, `CANAL - BLOCKED`. Everything else excluded (swale grading, missing cover, cave-in, drain tops cleaned, ...).
+  - Years: since 2022-01-01. County `data_311_2022` + `2023`; `data_311_2024` exists but needs a token (not public), 2025+ don't exist. City as-is (2022-10 → 2024-08); its service has one layer and no tables, so no older city records anywhere.
+  - Fetch only the chosen types, server-side filtered to the bbox by lat/lon, or by State Plane X/Y (EPSG:2236) where lat/lon is missing (recovered 0 this time). Raw → `data/raw/311_reports_raw.parquet`.
+  - Snap to non-bridge edges, `sjoin_nearest` in UTM, `max_distance=30`. Equidistant edges (mostly two-way twins) all get the report (1.59 edges/report).
+  - Counts are **distinct dates** (America/New_York) per edge, not rows.
+  - `jurisdiction` per edge: `city` if the edge midpoint is inside the City of Miami boundary (CityMiamiFL `City_Boundary/FeatureServer/0`, cached to `data/raw/city_of_miami_boundary.geojson`), else `county`.
+  - Scoring (Step 8, `config.RISK_PCT_WITHIN`): 0 days → 0; > 0 → percentile rank (`rank(method="average", pct=True)`) among the jurisdiction's edges with > 0. Reason: the city logs far more reports per road (city edges max 9 days, county max 3).
+  - Outputs: `features/reports_311.parquet` (`edge_id, flood_report_days, drain_issue_days, jurisdiction`); `processed/flood_reports.parquet` (one row per report-edge link: `edge_id, date, source, type, category, ticket_id, snap_m`) for the ML model; checks `311_reports.html` (folium, flood reports by source + city boundary), `311_counts.png`.
+  - Current: 2,807 reports fetched, all in bbox; 2,484 snapped (323 > 30 m dropped, median snap 19 m). Snapped / distinct dates: city COMPWSF 1,887 / 381; county flooding 121 / 74; county drain types 476 total. Dates 2022-01-19 → 2024-08-09. Edges with ≥ 1 flood day: city 1,909 of 16,514, county 151 of 19,857. Bridge edges: 0 (asserted).
+  - Effect: only 1 street at the max (was 24). E Fairview St / S Bayshore Ln #1 (5 flood days); Grove Isle Dr (0 reports) fell to #327. Top 20 is mostly City of Miami streets with reports + AE zone + low ground (NW 10th Ave, W Glencoe St, NE 22nd Ter, NE 23rd St, SW 9th St, ...).
 
 ### Step 6 — Drain density
 - Source: Miami-Dade GIS stormwater inlets / catch basins layer. **Ask me for the URL**; if it doesn't exist or is unusable, skip this step and tell me.
@@ -188,11 +214,23 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - **Exclude `is_bridge` edges from counting**: drains under a deck aren't on the deck. Bridge edges get 0.
 - Output `features/drains.parquet`
 - **Verify:** map of inlets over roads
+- **Implemented 2026-09-26:**
+  - Source: Miami-Dade "Stormwater Point" (MDPublisher; Hub page gis-mdc.opendata.arcgis.com/datasets/MDC::stormwater-point) → `https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/StormWaterPoint_gdb/FeatureServer/0`. Points, 193k total, 43.8k in bbox. Covers the City of Miami too (17.5k city-maintained points); CityMiamiFL publishes no stormwater layer.
+  - Counted types: `config.INLET_TYPES` = CATCH BASIN, RISER CATCH BASIN, YARD DRAIN (surface intakes). Excluded: MANHOLE (6.8k), CROSS SECTION (2.9k canal survey points), DRAINAGE WELL, VERTICAL FRENCH DRAIN, structures, pumps, valves, etc. All maintainers kept (incl. ~6.4k private).
+  - 33,088 fetched, 33,008 after dropping empty/duplicate points; cached to `data/raw/stormwater_inlets.geojson`. 27,569 lie within 50 m of a non-bridge edge.
+  - Output `features/drains.parquet`: `edge_id, drain_count` (inlets within `config.DRAIN_BUFFER_M` = 50 m), `drains_per_100m` (= count / length × 100). Bridge edges: 0 (asserted via printout).
+  - **Not scored** (not in `RISK_WEIGHTS`): direction is ambiguous, and coverage is uneven. Dense in Doral/Sweetwater/FIU/airport, sparse in Coral Gables, Coconut Grove and south Little Havana (swale/french-drain areas or uninventoried), so **0 means "none inventoried", not "no drainage"**. Columns are there for the ML model and dashboard.
+  - Current: 11,961 edges with 0; median `drain_count` 3, `drains_per_100m` 3.4 (city 3.39 vs county 3.20 on edges ≥ 20 m). Caveat: `drains_per_100m` inflates on short edges (median 10.4 for < 20 m vs 3.3; max 1,602) because the 50 m buffer's round ends dominate; prefer `drain_count` or filter by length.
 
 ### Step 7 — Low-point depth (OPTIONAL — only if time allows)
 - pysheds: `fill_pits` → `fill_depressions` on `dem.tif`; `depth = filled - dem`; save `data/raw/sink_depth.tif`
 - Sample max depth along each edge
-- Output `features/lowpoints.parquet`: `edge_id, sink_depth`
+- Output `features/lowpoints.parquet`: `edge_id, sink_depth` (max along edge), `sink_p90` (90th percentile; used for scoring)
+- **Implemented 2026-09-26:** pysheds 0.5 `fill_pits` → `fill_depressions` on `dem.tif` (~3 min); `depth = filled − dem` → `data/raw/sink_depth.tif` (same grid). Sampled with Step 3's sampler (every `ELEV_SAMPLE_M` = 10 m, min 5; the function is duplicated since scripts don't import each other). Check plot: `data/checks/lowpoints.png`.
+  - Raster: 22.8% of cells > 0.05 m deep, 2.8% > 1 m, max 11.5 m (lakes/quarry pits in the west, flat-water surfaces inside banks). East: a branching network of closed lows across the Rock Ridge (Coral Way / Silver Bluff / Shenandoah), likely old drainage paths with no surface outlet; elevation alone misses this since the area is relatively high.
+  - Edges: `sink_depth` median 0.08 m, 95th pct 0.61, max 2.91; 25.7% are 0. Bridges median 0.09 (not reading deep water).
+  - **Scoring uses `sink_p90`, fixed range (0, 1.0) m** (`config.RISK_FIXED_RANGE`), same reasoning as `elev_p10`: max picks up single deep pixels (e.g. SW 12th St max 2.14, p90 0.50), and a data min/max (~2.9 m) would squeeze most edges. Component: median 0.053, 29% at 0, 1.1% at 1.
+  - Effect (FEMA + elevation + 311 + sinks): risk_score median 0.32, max 0.957, 1 street at max. Top 20 shifts toward Brickell/downtown (SW 9th St #1, NW 18th Ct, SW 1st Ave, NE 23rd St, SW 2nd St, SW 10th St, ...); E Fairview St now #16.
 
 ### Step 8 — Build segments
 - Merge `roads.parquet` with every file in `data/features/` on `edge_id` (left join; must work with any subset of layers present). Carry `street_id` through.
@@ -200,6 +238,9 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - `risk_score` (0–1): min-max normalize and weight whichever features exist, e.g. `fema_risk_level` (not `in_sfha`, which stays a column only), low `elev_min`, `flood_reports_311`, `pct_impervious`, `sink_depth`. Weights in `config.py` so we can tune them. Placeholder until the ML model replaces it.
   - Implemented as: each feature in `config.RISK_WEIGHTS` that is present is scaled to 0–1 (min-max, or the fixed range in `config.RISK_FIXED_RANGE`: `fema_risk_level` uses 0–3, so minimal-hazard X = 0.33), and features in `config.RISK_INVERT` (`elev_min`) are flipped. The score is the weighted mean, with weights renormalized over the features each row has non-null.
   - Zero-filled columns: `config.FILL_ZERO`. Top-20 check groups by `street_id`.
+  - Elevation enters as **`elev_p10`**, inverted, on the **fixed range (0.5, 5.0) m** (`config.RISK_FIXED_RANGE`): ≤ 0.5 m → 1, ≥ 5 m → 0, clipped. A data min/max would be stretched to ~12 m by motorway embankments, squeezing normal roads into part of the scale.
+  - The script prints each scaled component's min/median/max and share at 0/1 and saves `data/checks/risk_components.png` (histograms). Current: `elev_p10` component spans 0–1 (0.9% at 0, 0.5% at 1, median 0.62, bimodal: Rock Ridge vs lowlands); `fema_risk_level` is 0.33/0.67/1.
+  - Current (FEMA + elevation): 21,263 distinct scores, median 0.46. 24 streets tie at 1.0 (SFHA and `elev_p10` ≤ 0.5 m, i.e. clipped by the fixed range; 35 AE + 2 VE edges): bayfront Brickell Ave / SE 12th Ter / SE 13th St, NE 23rd St, NW North River Dr, Stadium Dr, etc. Top-20 ties are broken by length only.
 - **Bridge cap (final override):** for `is_bridge` edges, `risk_score = min(risk_score, config.BRIDGE_RISK_CAP)` (0.1) and `score_note = "bridge_capped"`; `score_note` is null otherwise. Only `risk_score` changes; raw features (FEMA, elevation, …) stay untouched. Tunnels: flag only.
 - Output `data/processed/segments.parquet` (+ `score_note`)
 - **Verify:** map colored by `risk_score`; top 20 riskiest segments by name. Sanity check with me.
@@ -211,13 +252,17 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - Cast numpy types to plain Python; NaN → None
 - `delete_many({})` then `insert_many`, then `create_index([("geometry", "2dsphere")])` and `create_index("street_id")`
 - **Verify:** doc count matches parquet; run a `$near` query around FIU and a `$geoWithin` query around Brickell
+  - Target: db `flood`, collection `segments` (`config.MONGO_DB` / `MONGO_COLLECTION`; the URI has no db name). `python -m pipeline.09_load_mongo --ping` only tests the connection.
+  - `.env` key must be `MONGO_URI`. Paste the password **without** the `< >` from Atlas's `<db_password>` placeholder (that caused `bad auth`).
+  - Current: 36,371 docs, 0 geometries changed by `remove_repeated_points`, all LineString. `$near` FIU (300 m) → East Campus Circle / University Drive; `$geoWithin` Brickell box → 341 edges, 247 streets. ~17 s total.
+  - **Graph check:** before deleting anything, the script asserts `segments.parquet` has exactly the `edge_id`s of `graph.graphml` (rebuilt as `f"{u}_{v}_{key}"`), and after inserting asserts the Mongo `_id` set equals them. It also reports the load it is replacing vs the current graph (overlap, and how many of today's 483 bridge edge_ids it had: a pre-bridge-split load would lack most). 2026-09-26: previous load had the identical 36,371 ids (483/483 bridges), so no Atlas load ever predated the split.
 
 ---
 
 ## Priority / timeline
 
 1. **First ~2 hours:** Steps 0, 1, 2, 8, 9 with other columns null. Publish so backend/frontend can start.
-2. Then Steps 3 → 5 → 4 → 6, rerunning 8 and 9 after each lands.
+2. Then Steps 3 → 5 → 4 → 6, rerunning 8 and 9 after each lands. (3, 5, 6, 7 done; 4 skipped for now.)
 3. Step 7 last, only if ahead.
 
 ## Progress
@@ -225,10 +270,10 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - [x] Step 0 — Scaffold
 - [x] Step 1 — Roads
 - [x] Step 2 — FEMA
-- [ ] Step 3 — Elevation
-- [ ] Step 4 — Impervious
-- [ ] Step 5 — 311 reports
-- [ ] Step 6 — Drains
-- [ ] Step 7 — Low points (optional)
-- [x] Step 8 — Build segments (FEMA only so far; rerun after each new layer)
-- [ ] Step 9 — Load to Atlas
+- [x] Step 3 — Elevation (scored via `elev_p10`; in Atlas)
+- [ ] Step 4 — Impervious (skipped for now)
+- [x] Step 5 — 311 reports (in Atlas)
+- [x] Step 6 — Drains (unscored columns; in Atlas)
+- [x] Step 7 — Low points (scored via `sink_p90`; in Atlas)
+- [x] Step 8 — Build segments (FEMA + elevation + 311 + sinks scored, drains unscored; rerun after each new layer)
+- [x] Step 9 — Load to Atlas (FEMA + elevation + 311 + drains + sinks; rerun after each new layer + Step 8)
