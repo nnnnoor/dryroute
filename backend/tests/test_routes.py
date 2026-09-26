@@ -9,6 +9,33 @@ def test_dry_day_is_not_compromised(client):
     b = client.get("/routes", params=BRICKELL_TO_GOLD).json()
     assert b["compromised"] is False
     assert b["usual"]["high_risk_m"] == 0
+    assert b["recommendation"] == {"action": "safe", "message": "No flooding expected on your usual route."}
+
+
+# Real storm trips, one per outcome (found by sampling random trips)
+STORM_TRIPS = {
+    "reroute": {"from_lat": 25.7622, "from_lon": -80.3105, "to_lat": 25.7335, "to_lon": -80.2836},
+    "reroute_caution": {"from_lat": 25.7494, "from_lon": -80.3513, "to_lat": 25.7691, "to_lon": -80.3662},
+    "no_alternative": {"from_lat": 25.7738, "from_lon": -80.3253, "to_lat": 25.7888, "to_lon": -80.3576},
+}
+
+
+def test_storm_recommendations(client):
+    client.post("/demo/scenario", json={"scenario": "storm"})
+    for action, trip in STORM_TRIPS.items():
+        b = client.get("/routes", params=trip).json()
+        rec = b["recommendation"]
+        assert rec["action"] == action, (trip, rec)
+        assert b["compromised"] is True
+        if action == "reroute":
+            assert b["safe"]["high_risk_m"] < 200
+            assert rec["message"].startswith("Flooding likely on ")
+        elif action == "reroute_caution":
+            assert b["safe"]["high_risk_m"] >= 200
+            assert "Drive carefully" in rec["message"]
+        else:
+            assert b["same_route"] is True
+            assert "Consider leaving later" in rec["message"]
 
 
 def test_safe_route_has_less_high_risk_road(client):

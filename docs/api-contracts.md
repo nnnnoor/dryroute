@@ -87,6 +87,10 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
 ```json
 {
   "compromised": true,
+  "recommendation": {
+    "action": "reroute_caution",
+    "message": "The safer route avoids 6.9 km of flood-prone road but still crosses 1.2 km. Drive carefully (+1.4 min)."
+  },
   "coverage": {"origin_in_area": true, "destination_in_area": true, "note": null},
   "weather": { "...": "same as GET /weather" },
   "usual": {
@@ -112,7 +116,16 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
   "parking": null
 }
 ```
-- `compromised`: the usual route has at least 200 m of high-risk road, or a full closure.
+- `compromised`: the usual route has at least 200 m of high-risk road.
+- `recommendation`: what to tell the student. Use `action` for logic (colors, which route to highlight) and show
+  `message` as-is:
+
+  | `action` | When | Example `message` |
+  |---|---|---|
+  | `safe` | not compromised | "No flooding expected on your usual route." |
+  | `reroute` | compromised; the safe route has < 200 m of high-risk road | "Flooding likely on Southwest 67th Avenue. Take the safer route (+0.1 min)." |
+  | `reroute_caution` | compromised; the safe route is better but still has ≥ 200 m | "The safer route avoids 1.9 km of flood-prone road but still crosses 1.6 km. Drive carefully (+1.2 min)." |
+  | `no_alternative` | compromised; no different route exists | "No safer route: your trip has to cross 3.9 km of flood-prone road. Consider leaving later." |
 - `max_risk` / `risk_label`: the riskiest road on the route. `high_risk_m`: meters of high-risk road on it.
 - `closures`: closures on the route. Both routes already avoid full closures and slow down through roadwork.
 - `risk_segments`: only `medium`/`high` road pieces, in driving order (one entry per piece, so a long street can appear several times).

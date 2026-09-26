@@ -21,6 +21,19 @@ M_PER_DEG_LAT = 110_540
 M_PER_DEG_LON_EQUATOR = 111_320
 
 
+def _distance(meters: float) -> str:
+    return f"{meters / 1000:.1f} km" if meters >= 1000 else f"{round(meters)} m"
+
+
+def _worst_street(route: dict) -> str | None:
+    """Named street with the most high-risk meters on the route."""
+    by_name = {}
+    for s in route["risk_segments"]:
+        if s["risk_label"] == "high" and s["name"]:
+            by_name[s["name"]] = by_name.get(s["name"], 0) + s["length_m"]
+    return max(by_name, key=by_name.get) if by_name else None
+
+
 class RoutePlanner:
     def __init__(self, network: RoadNetwork, store: Store, risk: RiskService, settings: Settings):
         self.G = network.G
@@ -75,22 +88,45 @@ class RoutePlanner:
         safe_route = self._describe(safe_path, ctx, depart_at, arrive_by)
 
         high = lambda r: {s["segment_id"] for s in r["risk_segments"] if s["risk_label"] == "high"}
+        # Both routes already avoid full closures, so only flood risk can compromise the usual one
+        compromised = usual["high_risk_m"] >= self.settings.route_compromised_min_m
+        same_route = usual["route_id"] == safe_route["route_id"]
+        comparison = {
+            "extra_minutes": round(safe_route["eta_minutes"] - usual["eta_minutes"], 1),
+            "high_risk_m_avoided": max(0, usual["high_risk_m"] - safe_route["high_risk_m"]),
+            # high-risk segments on the usual route that the safe route skips
+            "high_risk_segments_avoided": len(high(usual) - high(safe_route)),
+        }
         return {
-            "compromised": usual["high_risk_m"] >= self.settings.route_compromised_min_m
-                           or any(c["full_closure"] for c in usual["closures"]),
+            "compromised": compromised,
+            "recommendation": self._recommend(compromised, same_route, usual, safe_route, comparison),
             "coverage": self._coverage(d_from, d_to),
             "weather": self.risk.weather(),
             "usual": usual,
             "safe": safe_route,
-            "same_route": usual["route_id"] == safe_route["route_id"],
-            "comparison": {
-                "extra_minutes": round(safe_route["eta_minutes"] - usual["eta_minutes"], 1),
-                "high_risk_m_avoided": max(0, usual["high_risk_m"] - safe_route["high_risk_m"]),
-                # high-risk segments on the usual route that the safe route skips
-                "high_risk_segments_avoided": len(high(usual) - high(safe_route)),
-            },
+            "same_route": same_route,
+            "comparison": comparison,
             "parking": None,
         }
+
+    def _recommend(self, compromised, same_route, usual, safe, comparison) -> dict:
+        """What the student should do: one action for the frontend's logic, one sentence to show."""
+        if not compromised:
+            return {"action": "safe", "message": "No flooding expected on your usual route."}
+        if same_route:
+            return {"action": "no_alternative",
+                    "message": f"No safer route: your trip has to cross {_distance(usual['high_risk_m'])} of "
+                               f"flood-prone road. Consider leaving later."}
+        extra = comparison["extra_minutes"]
+        extra_text = f"+{extra:g} min" if extra > 0 else "no extra time"
+        if safe["high_risk_m"] < self.settings.route_compromised_min_m:
+            street = _worst_street(usual)
+            where = f"on {street}" if street else "on your usual route"
+            return {"action": "reroute",
+                    "message": f"Flooding likely {where}. Take the safer route ({extra_text})."}
+        return {"action": "reroute_caution",
+                "message": f"The safer route avoids {_distance(comparison['high_risk_m_avoided'])} of flood-prone "
+                           f"road but still crosses {_distance(safe['high_risk_m'])}. Drive carefully ({extra_text})."}
 
     def _costs(self, cost: np.ndarray, closed: set[str]) -> dict:
         """(u, v, key) -> cost, without fully closed edges."""
