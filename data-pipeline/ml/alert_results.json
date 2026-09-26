@@ -1,0 +1,106 @@
+{
+  "status": "experimental_report_alert",
+  "prediction_target": "recorded_flood_report",
+  "threshold": 0.005588501188509725,
+  "comparison": ">=",
+  "training_through": "2023-06-30",
+  "selection_rule": "Maximum inverse-weighted validation F2; highest threshold breaks ties",
+  "selection_note": "F2 emphasizes recall. No test labels select this threshold. Not a safety threshold.",
+  "validation": {
+    "tp": 3.0,
+    "fp": 299.37278106508876,
+    "fn": 162.0,
+    "tn": 1681295.627218935,
+    "precision": 0.009921527954443161,
+    "recall": 0.01818181818181818,
+    "false_positive_rate": 0.0001780290623277833,
+    "false_discovery_rate": 0.9900784720455569,
+    "accuracy": 0.9997256607476305,
+    "alert_rate": 0.0001797954411242322,
+    "f2": 0.015586475734900795
+  },
+  "tests": {
+    "future_test": {
+      "overall": {
+        "tp": 21.0,
+        "fp": 3396.0,
+        "fn": 544.0,
+        "tn": 3550147.0,
+        "precision": 0.006145741878841089,
+        "recall": 0.03716814159292035,
+        "false_positive_rate": 0.0009556659367847807,
+        "false_discovery_rate": 0.9938542581211589,
+        "accuracy": 0.998891423670862,
+        "alert_rate": 0.0009614226692041997,
+        "f2": 0.018495684340320593
+      },
+      "city": {
+        "tp": 21.0,
+        "fp": 3396.0,
+        "fn": 536.0,
+        "tn": 2644323.0,
+        "precision": 0.006145741878841089,
+        "recall": 0.03770197486535009,
+        "false_positive_rate": 0.0012826134495390184,
+        "false_discovery_rate": 0.9938542581211589,
+        "accuracy": 0.9985152604939969,
+        "alert_rate": 0.0012902733702982619,
+        "f2": 0.018600531443755536
+      },
+      "county": {
+        "tp": 0.0,
+        "fp": 0.0,
+        "fn": 8.0,
+        "tn": 905824.0,
+        "precision": null,
+        "recall": 0.0,
+        "false_positive_rate": 0.0,
+        "false_discovery_rate": null,
+        "accuracy": 0.9999911683402661,
+        "alert_rate": 0.0,
+        "f2": 0.0
+      }
+    },
+    "unseen_streets_test": {
+      "overall": {
+        "tp": 3.0,
+        "fp": 883.0,
+        "fn": 115.0,
+        "tn": 854235.0,
+        "precision": 0.003386004514672686,
+        "recall": 0.025423728813559324,
+        "false_positive_rate": 0.0010326060263028027,
+        "false_discovery_rate": 0.9966139954853274,
+        "accuracy": 0.9988330706378122,
+        "alert_rate": 0.001035971357613571,
+        "f2": 0.011045655375552283
+      },
+      "city": {
+        "tp": 3.0,
+        "fp": 883.0,
+        "fn": 109.0,
+        "tn": 630773.0,
+        "precision": 0.003386004514672686,
+        "recall": 0.026785714285714284,
+        "false_positive_rate": 0.0013979127879732006,
+        "false_discovery_rate": 0.9966139954853274,
+        "accuracy": 0.9984298033455319,
+        "alert_rate": 0.0014024135442124324,
+        "f2": 0.011244377811094454
+      },
+      "county": {
+        "tp": 0.0,
+        "fp": 0.0,
+        "fn": 6.0,
+        "tn": 223462.0,
+        "precision": null,
+        "recall": 0.0,
+        "false_positive_rate": 0.0,
+        "false_discovery_rate": null,
+        "accuracy": 0.999973150518195,
+        "alert_rate": 0.0,
+        "f2": 0.0
+      }
+    }
+  }
+}

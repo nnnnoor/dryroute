@@ -38,6 +38,15 @@ until the ML model replaces it. Per-report 311 links for the ML model: `data/pro
 
 ## Running the pipeline (only if you're changing it)
 
+For the ML portion, see [ML setup and backend contract](data-pipeline/ml/README.md).
+It trains a daily weather-aware flood-report model, evaluates later dates and
+held-out streets, and exports a 0–1 relative score per original road segment.
+Generated model/data files are kept in gitignored `data-pipeline/artifacts/ml/`.
+Scores are experimental susceptibility indices, not probabilities of road flooding.
+Use `python -m ml.forecast --days 3` from `data-pipeline/` for predictive daily road
+scores and a study-area summary using forecast rainfall. The learned target is
+recorded flood reports; actual flooding probability remains unvalidated.
+
 ```bash
 cd data-pipeline
 python -m venv .venv

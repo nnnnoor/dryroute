@@ -267,6 +267,9 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 
 ## Progress
 
+- [x] ML: daily rainfall join, weighted street-day training, temporal/grouped tests,
+  baseline and model score exports (`ml/README.md`); original pipeline/Atlas unchanged.
+
 - [x] Step 0 — Scaffold
 - [x] Step 1 — Roads
 - [x] Step 2 — FEMA
