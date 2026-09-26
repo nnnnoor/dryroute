@@ -7,6 +7,8 @@
 data/raw/
 data/features/
 data/checks/
+# Step 10 live closures snapshot: served from Mongo, refreshed often
+data/processed/closures.parquet
 
 __pycache__/
 .venv/

@@ -65,7 +65,8 @@ data-pipeline/
 │   ├── 06_drains.py
 │   ├── 07_lowpoints.py   # optional
 │   ├── 08_build_segments.py
-│   └── 09_load_mongo.py
+│   ├── 09_load_mongo.py
+│   └── 10_closures.py    # live closures -> Mongo `closures` (rerun often)
 └── notebooks/checks.ipynb
 ```
 
@@ -257,6 +258,17 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
   - Current: 36,371 docs, 0 geometries changed by `remove_repeated_points`, all LineString. `$near` FIU (300 m) → East Campus Circle / University Drive; `$geoWithin` Brickell box → 341 edges, 247 streets. ~17 s total.
   - **Graph check:** before deleting anything, the script asserts `segments.parquet` has exactly the `edge_id`s of `graph.graphml` (rebuilt as `f"{u}_{v}_{key}"`), and after inserting asserts the Mongo `_id` set equals them. It also reports the load it is replacing vs the current graph (overlap, and how many of today's 483 bridge edge_ids it had: a pre-bridge-split load would lack most). 2026-09-26: previous load had the identical 36,371 ids (483/483 bridges), so no Atlas load ever predated the split.
 
+### Step 10 — Road closures / construction (for routing, not risk)
+Added 2026-09-26 (user request: "active road closures"). Time-varying, so it is **not** merged into `segments` and does **not** touch `risk_score`. It writes its own Mongo collection and is rerun independently (FL511: every ~15 min; the rate limit is ~10 calls/min).
+- **Sources:**
+  - **FL511** (FDOT traveler info), `https://fl511.com/api/v2/get/event?key=...&format=json`: the standard 511-platform events API (same schema as 511GA/511NY). Confirmed live: it returns `Invalid Key` without a key. Needs **`FL511_API_KEY` in `.env`** (free developer key from an FL511 account); **skipped with a message until then**. Keeps `EventType` in `config.FL511_EVENT_TYPES` (roadwork, closures). Fields used: `ID, EventType, IsFullClosure, DirectionOfTravel, StartDate/PlannedEndDate` (unix s), `LanesAffected, RoadwayName, Description, Organization, Severity`, geometry from `EncodedPolyline`, else primary→secondary lat/lon line, else a point. **Not yet run against live data** (no key). `--selftest` checks decode/parse/filter/matching offline.
+  - **Miami-Dade Utility Coordination** (MDPublisher, 21 layers in `config.UCC_LAYERS`, shared schema `PRJNAME, PROJECTID, AGCYNAME, AGYPRJSTAT, GENPRJSTAT, STARTDATE, ENDDATE`): planned work zones, a weak proxy for closures. Kept: `GENPRJSTAT == 'Construction'`, `AGYPRJSTAT` not Const.Complete/Closed, `ENDDATE >= now`, window ≤ `UCC_MAX_WINDOW_DAYS` (730). **FDOT excluded** (`UCC_EXCLUDE_AGENCIES`): its windows are fiscal years (Jul 1 → Jun 30, median ~7 yr) and its real closures come from FL511. Excluded layers: Canal, Moratorium (no-cut rule, not a closure), and two with a different schema.
+  - Checked and not usable: no Miami-Dade / City of Miami road-closure layer exists on ArcGIS Online; Waze for Cities needs a partnership.
+- **Matching (UTM):** lines/polygons buffered `CLOSURE_BUFFER_M` (20 m), edge kept if ≥ `CLOSURE_MIN_OVERLAP` (50%) of its length is inside; points take the nearest edge(s) within `CLOSURE_SNAP_M` (30 m), ties within 1 m. Directional events (Northbound…) keep only edges heading within ±`CLOSURE_BEARING_TOL` (60°). Bridges are included (closures apply to decks).
+- **Output:** `data/processed/closures.parquet` (gitignored) and Mongo `flood.closures`, replaced each run, one doc per (closure, edge): `_id = "<closure_id>|<edge_id>"`, `edge_id, closure_id, source` (fl511|county_ucc), `kind` (closure|roadwork|planned_construction), `full_closure, direction, start, end` (UTC; `end` null = open-ended), `name, description, lanes_affected, agency, status`. Indexes: `edge_id`, `(start, end)`.
+- **Backend use:** active = `{"start": {"$lte": now}, "$or": [{"end": {"$gte": now}}, {"end": null}]}`. Suggested: `full_closure` → drop the edge from the routing graph; roadwork / planned_construction → a time penalty.
+- **Current (county only):** 672 construction-phase records in bbox → 10 kept (124 FDOT, 66 complete/closed, 552 ended, 232 windows > 2 yr; overlapping) → 5 projects on 26 edges (2.6 km): NW 62 Ave, SW 1st St water main, SW 114th Ave, SW 11 St, NW 57 Ct. Each matched its named street plus short cross-street stubs at the ends.
+
 ---
 
 ## Priority / timeline
@@ -277,3 +289,4 @@ Create the folders, `.gitignore`, `requirements.txt`, `config.py`, `.env.example
 - [x] Step 7 — Low points (scored via `sink_p90`; in Atlas)
 - [x] Step 8 — Build segments (FEMA + elevation + 311 + sinks scored, drains unscored; rerun after each new layer)
 - [x] Step 9 — Load to Atlas (FEMA + elevation + 311 + drains + sinks; rerun after each new layer + Step 8)
+- [x] Step 10 — Road closures (county planned construction live in Mongo `closures`; FL511 coded + selftested, needs `FL511_API_KEY`)

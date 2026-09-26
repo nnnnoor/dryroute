@@ -36,6 +36,15 @@ layers land.
 (weighted FEMA risk level, low ground via `elev_p10`, 311 flood-report days as a percentile within city/county, ponding depth via `sink_p90`)
 until the ML model replaces it. Per-report 311 links for the ML model: `data/processed/flood_reports.parquet`.
 
+### Road closures in Mongo (`closures` collection)
+
+For routing, separate from flood risk. One doc per (closure, edge): `edge_id`, `source` (`fl511` live
+FDOT closures, or `county_ucc` planned county construction), `kind` (`closure` | `roadwork` |
+`planned_construction`), `full_closure`, `direction`, `start`/`end` (UTC, `end` null = open-ended),
+`name`, `description`, `lanes_affected`. Active right now:
+`{"start": {"$lte": now}, "$or": [{"end": {"$gte": now}}, {"end": null}]}`. Refresh it by rerunning
+`python -m pipeline.10_closures` (e.g. every 15 min). Live FL511 data needs `FL511_API_KEY` in `.env`.
+
 ## Running the pipeline (only if you're changing it)
 
 ```bash
@@ -51,6 +60,7 @@ cp .env.example .env                                       # then fill in MONGO_
 .venv/Scripts/python -m pipeline.07_lowpoints
 .venv/Scripts/python -m pipeline.08_build_segments
 .venv/Scripts/python -m pipeline.09_load_mongo              # --ping to only test the connection
+.venv/Scripts/python -m pipeline.10_closures               # closures; rerun often (--selftest offline)
 ```
 
 Raw downloads (`data/raw/`), per-layer features, check plots and the OSM cache are not committed;

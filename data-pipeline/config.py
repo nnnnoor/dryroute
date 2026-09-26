@@ -63,3 +63,25 @@ DRAIN_TYPES = {  # not scored -> drain_issue_days
 # (disposal, not intake), structures, pumps, valves, etc. Not scored (direction is ambiguous).
 INLET_TYPES = ["CATCH BASIN", "RISER CATCH BASIN", "YARD DRAIN"]
 DRAIN_BUFFER_M = 50
+
+# Step 10: road closures / construction for routing (NOT part of risk_score). Loaded to Mongo
+# collection MONGO_CLOSURES; the backend filters start <= now <= end at request time.
+MONGO_CLOSURES = "closures"
+FL511_EVENT_TYPES = ["roadwork", "closures"]   # FL511 EventType values kept (needs FL511_API_KEY in .env)
+CLOSURE_SNAP_M = 30          # point events: nearest edges within this distance (UTM m)
+CLOSURE_BUFFER_M = 20        # line/polygon events: buffer, then edges with >= CLOSURE_MIN_OVERLAP of length inside
+CLOSURE_MIN_OVERLAP = 0.5
+CLOSURE_BEARING_TOL = 60     # directional events: keep edges within +-this many degrees of the direction
+# Miami-Dade Utility Coordination (planned construction; weak proxy: planned windows, not lane closures)
+UCC_LAYERS = [  # MDPublisher FeatureServer names sharing the PRJNAME/GENPRJSTAT/STARTDATE/ENDDATE schema
+    "UtilCoordRoadway_gdb", "UtilCoordPaving_gdb", "FDOTCorridor_gdb", "MDCPWArea_gdb", "MDCPWCorridor_gdb",
+    "MDCPWSite_gdb", "UtilCoordBridge_gdb", "UtilCoordStormwater_gdb", "UtilCoordWater_gdb", "UtilCoordSewer_gdb",
+    "UtilCoordReclaimed_gdb", "UtilCoordGas_gdb", "UtilCoordCable_gdb", "UtilCoordPower_gdb", "UtilCoordTransit_gdb",
+    "WASDWater_gdb", "WASDSewer_gdb", "WASDReclaimed_gdb", "UtilCoordMiscellaneous_gdb", "MiamiCIPArea_gdb",
+    "CoralGablesCIPSite_gdb",
+]
+UCC_EXCLUDE_AGENCY_STATUS = ["Const.Complete", "Closed"]  # GENPRJSTAT says Construction but the work is done
+UCC_MAX_WINDOW_DAYS = 730    # longer windows are multi-year program spans (FDOT median ~7 yr), not work zones
+# FDOT entries in Utility Coordination carry fiscal-year windows (Jul 1 -> Jun 30), not work dates, and
+# FDOT's actual lane/road closures come from FL511. So FDOT is taken from FL511 only.
+UCC_EXCLUDE_AGENCIES = ["FDOT"]
