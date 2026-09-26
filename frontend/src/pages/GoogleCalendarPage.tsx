@@ -10,8 +10,6 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 
-import logo from '../assets/dryroute-logo.png'
-import campus from '../assets/fiu-campus.png'
 import googleLogo from '../assets/image 5.png'
 
 type GoogleCalendarProps = {
@@ -37,6 +35,13 @@ export default function GoogleCalendar({
   } | null>(null)
 
   const [message, setMessage] = useState('')
+  const [userName] = useState(() => {
+    try {
+      return sessionStorage.getItem('dryroute-user-name')?.trim() ?? ''
+    } catch {
+      return ''
+    }
+  })
 
   const enableLocation = () => {
     if (!navigator.geolocation) {
@@ -131,7 +136,7 @@ export default function GoogleCalendar({
         <div className="relative overflow-hidden sm:rounded-[52px]">
 
           {/* iPhone Dynamic Island */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden h-14 text-white sm:block">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden h-14 bg-[#f4f9fc] text-route-navy sm:block">
             <span className="absolute top-[19px] left-8 text-[15px] font-semibold">
               9:41
             </span>
@@ -144,40 +149,28 @@ export default function GoogleCalendar({
           </div>
 
           <main
-            className="relative flex min-h-svh flex-col bg-cover bg-center px-6 pt-[max(60px,env(safe-area-inset-top))] pb-[max(35px,env(safe-area-inset-bottom))] text-white sm:h-[874px] sm:min-h-0 
+            className="relative flex min-h-svh flex-col bg-[#f4f9fc] px-7 pt-[max(60px,env(safe-area-inset-top))] pb-[max(35px,env(safe-area-inset-bottom))] text-route-navy sm:h-[874px] sm:min-h-0 
             sm:overflow-y-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden
-            sm:pt-[85px] sm:pb-[45px]"
-            style={{ backgroundImage: `url(${campus})` }}
+            sm:pt-[68px] sm:pb-[45px]"
           >
 
-            {/* Background overlay */}
-            <div className="absolute inset-0 bg-[#00122e]/75" />
 
             <div className="relative z-10 flex flex-1 flex-col">
-              {/* Branding */}
-              <header className="flex flex-col items-center text-center">
-
+              <header className="flex items-center justify-between">
+                <a href="/signup" aria-label="Back to your name" className="flex size-11 items-center justify-center rounded-full border border-[#dce7ee] bg-white hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy">
+                  <ArrowLeft aria-hidden="true" className="size-5" />
+                </a>
+                <p className="text-xl font-bold tracking-tight"><span className="text-route-gold">Dry</span>Route</p>
+                <span aria-hidden="true" className="size-11" />
               </header>
-              {/* Intro */}
-              <section className="mt-8 text-center">
-                    <div className="flex items-center justify-center gap-3">
-                        <a
-                            href="/"
-                            aria-label="Back to welcome page"
-                            className="absolute left-0 flex items-center justify-center text-white transition hover:text-route-gold"
-                        >
-                            <ArrowLeft className="h-6 w-6" />
-                        </a>
-                    <img
-                        src={logo}
-                        alt=""
-                        className="h-12 w-12 shrink-0 object-contain"
-                    />
-
-                    <h2 className="text-[25px] font-bold tracking-tight">
-                        Let's get you moving.
-                    </h2>
-                    </div>
+              <section className="mt-8 text-center" aria-labelledby="setup-heading">
+                <p className="text-[11px] font-bold tracking-[0.18em] text-[#92701d] uppercase">Make yourself at home</p>
+                <h1 id="setup-heading" className="mt-3 text-[32px] leading-[1.15] font-bold tracking-tight [overflow-wrap:anywhere]">
+                  {userName ? `Welcome, ${userName}` : 'Welcome!'}
+                </h1>
+                <p className="mx-auto mt-3 max-w-[285px] text-sm leading-6 text-[#5c7184]">
+                  A few quick steps to make DryRoute work for you.
+                </p>
                 {/* Progress */}
                 <div className="mt-5 flex items-center justify-center gap-2">
                   {[0, 1, 2].map((step) => (
@@ -186,13 +179,13 @@ export default function GoogleCalendar({
                       className={`h-[5px] w-14 rounded-full transition-colors ${
                         step < completed
                           ? 'bg-route-gold'
-                          : 'bg-white/20'
+                          : 'bg-[#dce7ee]'
                       }`}
                     />
                   ))}
                 </div>
 
-                <p className="mt-2 text-xs text-white/55">
+                <p className="mt-2 text-xs text-[#5c7184]">
                   {completed} of 3 connected
                 </p>
 
@@ -202,11 +195,11 @@ export default function GoogleCalendar({
               <section className="mt-7 flex flex-col gap-3">
 
                 {/* Location */}
-                <div className="rounded-[22px] border border-white/20 bg-[#061c3b]/85 p-4 shadow-lg backdrop-blur-md">
+                <div className="rounded-[22px] border border-[#dce7ee] bg-white p-4 shadow-sm">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f4f9fc]">
                       <MapPin className="h-6 w-6 text-route-gold" />
                     </div>
 
@@ -215,13 +208,13 @@ export default function GoogleCalendar({
                         Enable Location
                       </h3>
 
-                      <p className="mt-1 text-xs leading-5 text-white/60">
+                      <p className="mt-1 text-xs leading-5 text-[#5c7184]">
                         Find nearby flood risks and safer routes.
                       </p>
                     </div>
 
                     {locationStatus === 'success' && (
-                      <Check className="h-5 w-5 text-green-400" />
+                      <Check className="h-5 w-5 text-green-700" />
                     )}
 
                   </div>
@@ -230,7 +223,7 @@ export default function GoogleCalendar({
                     type="button"
                     onClick={enableLocation}
                     disabled={locationStatus === 'loading'}
-                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 text-sm font-semibold transition hover:bg-white/20 disabled:opacity-60"
+                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#cfdee8] bg-[#f4f9fc] text-sm font-semibold transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-60"
                   >
                     {locationStatus === 'loading' ? (
                       <>
@@ -250,7 +243,7 @@ export default function GoogleCalendar({
                 </div>
 
                 {/* Google Calendar */}
-                <div className="rounded-[22px] border border-white/20 bg-[#061c3b]/85 p-4 shadow-lg backdrop-blur-md">
+                <div className="rounded-[22px] border border-[#dce7ee] bg-white p-4 shadow-sm">
 
                   <div className="flex items-center gap-3">
 
@@ -267,13 +260,13 @@ export default function GoogleCalendar({
                         Google Calendar
                       </h3>
 
-                      <p className="mt-1 text-xs leading-5 text-white/60">
+                      <p className="mt-1 text-xs leading-5 text-[#5c7184]">
                         Plan your commute around classes and events.
                       </p>
                     </div>
 
                     {calendarConnected && (
-                      <Check className="h-5 w-5 text-green-400" />
+                      <Check className="h-5 w-5 text-green-700" />
                     )}
 
                   </div>
@@ -282,7 +275,7 @@ export default function GoogleCalendar({
                     type="button"
                     onClick={connectCalendar}
                     disabled={calendarConnected}
-                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#081E3F] transition hover:bg-gray-100 disabled:opacity-70"
+                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#cfdee8] bg-white text-sm font-semibold text-[#081E3F] transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-70"
                   >
                     {calendarConnected ? (
                       <>
@@ -301,18 +294,18 @@ export default function GoogleCalendar({
                     )}
                   </button>
 
-                  <p className="mt-2 text-center text-[10px] text-white/45">
+                  <p className="mt-2 text-center text-[10px] text-[#5c7184]">
                     Optional · Read-only calendar access
                   </p>
 
                 </div>
 
                 {/* Notifications */}
-                <div className="rounded-[22px] border border-white/20 bg-[#061c3b]/85 p-4 shadow-lg backdrop-blur-md">
+                <div className="rounded-[22px] border border-[#dce7ee] bg-white p-4 shadow-sm">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f4f9fc]">
                       <Bell className="h-6 w-6 text-route-gold" />
                     </div>
 
@@ -321,13 +314,13 @@ export default function GoogleCalendar({
                         Stay Ahead
                       </h3>
 
-                      <p className="mt-1 text-xs leading-5 text-white/60">
+                      <p className="mt-1 text-xs leading-5 text-[#5c7184]">
                         Get flood alerts and commute reminders.
                       </p>
                     </div>
 
                     {notificationStatus === 'success' && (
-                      <Check className="h-5 w-5 text-green-400" />
+                      <Check className="h-5 w-5 text-green-700" />
                     )}
 
                   </div>
@@ -336,7 +329,7 @@ export default function GoogleCalendar({
                     type="button"
                     onClick={enableNotifications}
                     disabled={notificationStatus === 'loading'}
-                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 text-sm font-semibold transition hover:bg-white/20"
+                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#cfdee8] bg-[#f4f9fc] text-sm font-semibold transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy"
                   >
                     {notificationStatus === 'success' ? (
                       <>
@@ -356,7 +349,7 @@ export default function GoogleCalendar({
               {message && (
                 <p
                   role="alert"
-                  className="mt-4 rounded-xl bg-red-500/15 px-3 py-2 text-center text-xs text-red-200"
+                  className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-center text-xs text-red-700"
                 >
                   {message}
                 </p>
@@ -368,13 +361,13 @@ export default function GoogleCalendar({
                 <button
                   type="button"
                   onClick={continueToDashboard}
-                  className="cursor-pointer flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-linear-to-b from-[#a97911] to-[#bb881c] text-lg font-bold text-white shadow-lg transition hover:brightness-110 active:brightness-95"
+                  className="cursor-pointer flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full bg-route-navy text-lg font-bold text-white shadow-[0_6px_16px_rgba(0,35,71,0.15)] transition hover:bg-[#0c375e] active:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy"
                 >
                   Continue to DryRoute
                   <ArrowRight className="h-5 w-5" />
                 </button>
 
-                <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-white/55">
+                <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-[#5c7184]">
                   <ShieldCheck className="h-4 w-4" />
                   You're in control of your permissions.
                 </p>
@@ -386,7 +379,7 @@ export default function GoogleCalendar({
           </main>
 
           {/* Home indicator */}
-          <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 hidden h-[5px] w-[134px] -translate-x-1/2 rounded-full bg-white sm:block" />
+          <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 hidden h-[5px] w-[134px] -translate-x-1/2 rounded-full bg-route-navy sm:block" />
 
         </div>
       </div>
