@@ -1,5 +1,5 @@
 import logo from '../assets/dryroute-logo.png'
-import campus from '../assets/fiu-campus.png'
+import campus from '../assets/florida-international-university.jpg'
 
 type LoginPageProps = {
   getStartedHref?: string

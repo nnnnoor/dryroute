@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ShieldCheck,
   Loader2,
+  ArrowLeft,
 } from 'lucide-react'
 
 import logo from '../assets/dryroute-logo.png'
@@ -143,7 +144,9 @@ export default function GoogleCalendar({
           </div>
 
           <main
-            className="relative flex min-h-svh flex-col bg-cover bg-center px-6 pt-[max(60px,env(safe-area-inset-top))] pb-[max(35px,env(safe-area-inset-bottom))] text-white sm:h-[874px] sm:min-h-0 sm:overflow-y-auto sm:pt-[85px] sm:pb-[45px]"
+            className="relative flex min-h-svh flex-col bg-cover bg-center px-6 pt-[max(60px,env(safe-area-inset-top))] pb-[max(35px,env(safe-area-inset-bottom))] text-white sm:h-[874px] sm:min-h-0 
+            sm:overflow-y-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden
+            sm:pt-[85px] sm:pb-[45px]"
             style={{ backgroundImage: `url(${campus})` }}
           >
 
@@ -151,39 +154,30 @@ export default function GoogleCalendar({
             <div className="absolute inset-0 bg-[#00122e]/75" />
 
             <div className="relative z-10 flex flex-1 flex-col">
-
               {/* Branding */}
               <header className="flex flex-col items-center text-center">
 
-                <img
-                  src={logo}
-                  alt="DryRoute logo"
-                  className="h-20 w-20 object-contain"
-                />
-
-                <h1 className="mt-2 text-[38px] font-bold tracking-tight">
-                  <span className="text-route-gold">Dry</span>
-                  Route
-                </h1>
-
-                <p className="mt-1 text-sm font-semibold tracking-wide text-white/85">
-                  Safer Routes. Better Days.
-                </p>
-
               </header>
-
               {/* Intro */}
               <section className="mt-8 text-center">
+                    <div className="flex items-center justify-center gap-3">
+                        <a
+                            href="/"
+                            aria-label="Back to welcome page"
+                            className="absolute left-0 flex items-center justify-center text-white transition hover:text-route-gold"
+                        >
+                            <ArrowLeft className="h-6 w-6" />
+                        </a>
+                    <img
+                        src={logo}
+                        alt=""
+                        className="h-12 w-12 shrink-0 object-contain"
+                    />
 
-                <h2 className="text-[25px] font-bold tracking-tight">
-                  Let's get you moving.
-                </h2>
-
-                <p className="mx-auto mt-2 max-w-[290px] text-sm leading-6 text-white/70">
-                  A few quick steps to personalize your commute
-                  and help you stay ahead of the weather.
-                </p>
-
+                    <h2 className="text-[25px] font-bold tracking-tight">
+                        Let's get you moving.
+                    </h2>
+                    </div>
                 {/* Progress */}
                 <div className="mt-5 flex items-center justify-center gap-2">
                   {[0, 1, 2].map((step) => (
@@ -374,7 +368,7 @@ export default function GoogleCalendar({
                 <button
                   type="button"
                   onClick={continueToDashboard}
-                  className="flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-linear-to-b from-[#a97911] to-[#bb881c] text-lg font-bold text-white shadow-lg transition hover:brightness-110 active:brightness-95"
+                  className="cursor-pointer flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-linear-to-b from-[#a97911] to-[#bb881c] text-lg font-bold text-white shadow-lg transition hover:brightness-110 active:brightness-95"
                 >
                   Continue to DryRoute
                   <ArrowRight className="h-5 w-5" />
