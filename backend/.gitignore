@@ -14,6 +14,9 @@ __pycache__/
 build/
 dist/
 
+# OSMnx download cache (scripts/build_fiu_buildings.py)
+cache/
+
 # Test / tool caches
 .pytest_cache/
 .coverage
