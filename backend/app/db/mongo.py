@@ -2,7 +2,8 @@
 
 Collections (db settings.mongo_db): segments, parking, fiu_hotspots and closures from the data pipeline;
 risk_runs and risk_scores from the ML job (docs/api-contracts.md). The static layers are loaded into
-memory at startup (~5 s); closures and risk runs are queried per request.
+memory at startup (~5 s); closures and risk runs are queried per request. The backend only reads those;
+the one collection it writes is its own `alerts`.
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
@@ -37,6 +38,15 @@ class MongoStore(Store):
 
     def get_user(self, user_id="demo"):
         return self._user
+
+    # alerts: the backend's own collection (never written by the pipeline or ML)
+    def get_alerts(self, user_id):
+        return [{k: v for k, v in d.items() if k not in ("_id", "user_id")}
+                for d in self.db.alerts.find({"user_id": user_id})]
+
+    def save_alert(self, user_id, alert):
+        self.db.alerts.replace_one({"_id": f"{user_id}|{alert['alert_id']}"},
+                                   {**alert, "user_id": user_id}, upsert=True)
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)

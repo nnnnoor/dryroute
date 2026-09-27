@@ -38,6 +38,14 @@ class Store:
         """User profile: home, preferred_parking_id, arrival_buffer_minutes (users collection)."""
         raise NotImplementedError
 
+    def get_alerts(self, user_id: str) -> list[dict]:
+        """Every alert doc for the user (active and resolved), in no particular order."""
+        raise NotImplementedError
+
+    def save_alert(self, user_id: str, alert: dict) -> None:
+        """Insert or replace one alert, keyed by alert["alert_id"]."""
+        raise NotImplementedError
+
 
 class LocalStore(Store):
     def __init__(self, settings: Settings):
@@ -49,9 +57,16 @@ class LocalStore(Store):
             self._closures = [_parse_closure(c) for c in json.load(f)]
         with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
             self._user = json.load(f)
+        self._alerts: dict[tuple[str, str], dict] = {}  # in memory: gone on restart
 
     def get_user(self, user_id="demo"):
         return self._user
+
+    def get_alerts(self, user_id):
+        return [dict(a) for (uid, _), a in self._alerts.items() if uid == user_id]
+
+    def save_alert(self, user_id, alert):
+        self._alerts[(user_id, alert["alert_id"])] = dict(alert)
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)

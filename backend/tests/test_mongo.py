@@ -41,3 +41,17 @@ def test_storm_works_without_ml_run(stores):
     run = mongo.latest_risk_run("storm")
     assert run is not None
     assert mongo.risk_scores(run["_id"])
+
+
+def test_alerts_round_trip(stores):
+    """Writes one alert for a throwaway user in the backend's own `alerts` collection, then deletes it."""
+    _, mongo = stores
+    user = "pytest-alerts"
+    alert = {"alert_id": "al_test", "type": "tide", "severity": "warning", "read": False, "active": True}
+    try:
+        mongo.save_alert(user, alert)
+        mongo.save_alert(user, {**alert, "read": True})  # upsert, not a second doc
+        assert mongo.get_alerts(user) == [{**alert, "read": True}]
+    finally:
+        mongo.db.alerts.delete_many({"user_id": user})
+    assert mongo.get_alerts(user) == []

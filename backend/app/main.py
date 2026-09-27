@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import calendar, parking, risk, routes
+from app.api import alerts, calendar, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
+from app.integrations.live_conditions import LiveConditions
 from app.integrations.tomtom import TomTomTraffic
+from app.services.alerts import AlertService
 from app.services.calendar_sync import CalendarService
 from app.services.flood_risk import RiskService
 from app.services.parking import ParkingService
@@ -40,6 +42,8 @@ async def lifespan(app: FastAPI):
     app.state.trips = TripPlanner(app.state.planner, app.state.parking, store)
     app.state.calendar = CalendarService(make_calendar_source(settings), store, app.state.trips, app.state.parking,
                                          settings, settings.fixtures_dir / "fiu_buildings.json")
+    live = LiveConditions() if settings.live_conditions_enabled else None
+    app.state.alerts = AlertService(store, app.state.calendar, app.state.parking, live, settings)
     yield
 
 
@@ -55,6 +59,7 @@ app.include_router(risk.router)
 app.include_router(routes.router)
 app.include_router(parking.router)
 app.include_router(calendar.router)
+app.include_router(alerts.router)
 
 
 @app.get("/health")
@@ -65,6 +70,7 @@ def health(request: Request):
         "data_backend": s.settings.data_backend,
         "fake_calendar": s.settings.use_fake_calendar,
         "traffic": "tomtom" if s.planner.traffic else "off (free-flow)",
+        "live_conditions": "nws + tide" if s.alerts.live else "off",
         "segments": len(s.store.segments),
         "graph_nodes": s.network.G.number_of_nodes(),
         "graph_edges": s.network.G.number_of_edges(),

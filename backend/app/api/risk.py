@@ -35,4 +35,5 @@ class ScenarioIn(BaseModel):
 def set_scenario(body: ScenarioIn, request: Request):
     risk = request.app.state.risk
     risk.scenario = body.scenario
+    request.app.state.alerts.invalidate()  # alerts reflect the new scenario on the next poll
     return risk.weather()
