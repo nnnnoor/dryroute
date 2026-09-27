@@ -1,0 +1,8 @@
+{
+  "date": "2026-09-26",
+  "rain_mm": 35.0,
+  "rain_lag1_mm": 12.0,
+  "rain_prior3_mm": 24.0,
+  "source": "synthetic_demo_not_live_weather",
+  "updated_at": "2026-09-26T12:00:00-04:00"
+}
