@@ -67,7 +67,6 @@ class AlertService:
     # ---------------------------------------------------------------- building
     def refresh(self, user_id: str = "demo", now: datetime | None = None) -> None:
         now = now or datetime.now(timezone.utc)
-        self._last_refresh[user_id] = time.monotonic()
         candidates, checked = [], set()
 
         event, trip = self.calendar.plan_next(now=now)
@@ -84,7 +83,8 @@ class AlertService:
             destination = (event["location_point"]["lat"], event["location_point"]["lon"]) \
                 if event and event.get("location_point") else FIU_CENTER
             home = self.store.get_user(user_id)["home"]
-            conditions = self.live.check([(home["lat"], home["lon"]), destination], at, now)
+            points = [(home["lat"], home["lon"]), destination] if home else [destination]
+            conditions = self.live.check(points, at, now)
             if conditions["nws_alerts"]["status"] == "ok":
                 checked.add("nws")
                 candidates += [self._nws_alert(a) for a in conditions["nws_alerts"]["data"]]
@@ -94,6 +94,7 @@ class AlertService:
                 candidates += [tide] if tide else []
 
         self._save(user_id, candidates, checked, now)
+        self._last_refresh[user_id] = time.monotonic()
 
     def _trip_alerts(self, event: dict, trip: dict) -> list[dict]:
         name, event_id = event["event_name"], event["event_id"]

@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   MapPin,
   Bell,
@@ -10,31 +10,49 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 
+import { GOOGLE_CALENDAR_URL, getCalendarConnection, connectDemoCalendar, updateProfile } from '../services/calendarApi'
+
 import googleLogo from '../assets/image 5.png'
 
 type GoogleCalendarProps = {
   dashboardHref?: string
-  calendarConnected?: boolean
+}
+
+function savedLocation(): { latitude: number; longitude: number } | null {
+  try { return JSON.parse(sessionStorage.getItem('dryroute-onboarding') || '{}').coordinates || null } catch { return null }
 }
 
 type PermissionStatus = 'idle' | 'loading' | 'success' | 'error'
 
 export default function GoogleCalendar({
   dashboardHref = '/dashboard',
-  calendarConnected = false,
 }: GoogleCalendarProps) {
   const [locationStatus, setLocationStatus] =
-    useState<PermissionStatus>('idle')
+    useState<PermissionStatus>(() => savedLocation() ? 'success' : 'idle')
 
   const [notificationStatus, setNotificationStatus] =
-    useState<PermissionStatus>('idle')
+    useState<PermissionStatus>(() => 'Notification' in window && Notification.permission === 'granted' ? 'success' : 'idle')
 
   const [location, setLocation] = useState<{
     latitude: number
     longitude: number
-  } | null>(null)
+  } | null>(savedLocation)
 
-  const [message, setMessage] = useState('')
+  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [calendarSource, setCalendarSource] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(() => {
+    const outcome = new URLSearchParams(window.location.search).get('calendar')
+    return ({ 'not-configured': 'Google Calendar needs the backend Google OAuth credentials first. You can try the demo schedule below.', denied: 'Google Calendar permission was declined. You can connect again.', error: 'Google authorization failed. Please try connecting again.', 'scope-denied': 'Please allow read-only Calendar access to connect.' } as Record<string, string>)[outcome || ''] || ''
+  })
+  useEffect(() => {
+    const controller = new AbortController()
+    getCalendarConnection(controller.signal).then(connection => {
+      setCalendarConnected(connection.connected)
+      setCalendarSource(connection.source)
+    }).catch(error => { if (!controller.signal.aborted) setMessage(error.message) })
+    return () => controller.abort()
+  }, [])
   const [userName] = useState(() => {
     try {
       return sessionStorage.getItem('dryroute-user-name')?.trim() ?? ''
@@ -78,8 +96,8 @@ export default function GoogleCalendar({
   }
 
   const connectCalendar = () => {
-    // Backend must implement this Google OAuth endpoint.
-    window.location.assign('/api/auth/google')
+    try { sessionStorage.setItem('dryroute-onboarding', JSON.stringify({ coordinates: location })) } catch { /* Storage is optional. */ }
+    window.location.assign(GOOGLE_CALENDAR_URL)
   }
 
   const enableNotifications = async () => {
@@ -91,7 +109,12 @@ export default function GoogleCalendar({
 
     setNotificationStatus('loading')
 
-    const permission = await Notification.requestPermission()
+    let permission: NotificationPermission
+    try { permission = await Notification.requestPermission() } catch {
+      setNotificationStatus('error')
+      setMessage('Notification permission could not be requested.')
+      return
+    }
 
     if (permission === 'granted') {
       setNotificationStatus('success')
@@ -102,20 +125,25 @@ export default function GoogleCalendar({
     }
   }
 
-  const continueToDashboard = () => {
-    const preferences = {
-      locationEnabled: locationStatus === 'success',
-      calendarConnected,
-      notificationsEnabled: notificationStatus === 'success',
-      coordinates: location,
-    }
+  const continueToDashboard = async () => {
+    setBusy(true)
+    try {
+      if (calendarConnected) await updateProfile({ ...(userName ? { name: userName } : {}), ...(location ? { home: { label: 'Your location', lat: location.latitude, lon: location.longitude } } : {}) })
+      try { sessionStorage.setItem('dryroute-onboarding', JSON.stringify({ coordinates: location })) } catch { /* Storage is optional. */ }
+      window.location.assign(dashboardHref)
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save your setup.') }
+    finally { setBusy(false) }
+  }
 
-    sessionStorage.setItem(
-      'dryroute-onboarding',
-      JSON.stringify(preferences)
-    )
-
-    window.location.assign(dashboardHref)
+  const useDemo = async () => {
+    setBusy(true)
+    try {
+      const connection = await connectDemoCalendar()
+      setCalendarConnected(connection.connected)
+      setCalendarSource(connection.source)
+      setMessage('')
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not load the demo.') }
+    finally { setBusy(false) }
   }
 
   const completed =
@@ -274,10 +302,10 @@ export default function GoogleCalendar({
                   <button
                     type="button"
                     onClick={connectCalendar}
-                    disabled={calendarConnected}
+                    disabled={busy || (calendarConnected && calendarSource === 'google')}
                     className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#cfdee8] bg-white text-sm font-semibold text-[#081E3F] transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-70"
                   >
-                    {calendarConnected ? (
+                    {calendarConnected && calendarSource === 'google' ? (
                       <>
                         <Check className="h-4 w-4" />
                         Calendar Connected
@@ -292,6 +320,10 @@ export default function GoogleCalendar({
                         Connect Google Calendar
                       </>
                     )}
+                  </button>
+
+                  <button type="button" onClick={useDemo} disabled={busy} className="mt-3 w-full text-xs font-semibold text-[#5c7184] underline disabled:opacity-50">
+                    {calendarSource === 'demo' ? 'Demo schedule selected' : 'Try a demo schedule'}
                   </button>
 
                   <p className="mt-2 text-center text-[10px] text-[#5c7184]">
@@ -361,6 +393,7 @@ export default function GoogleCalendar({
                 <button
                   type="button"
                   onClick={continueToDashboard}
+                  disabled={busy}
                   className="cursor-pointer flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full bg-route-navy text-lg font-bold text-white shadow-[0_6px_16px_rgba(0,35,71,0.15)] transition hover:bg-[#0c375e] active:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy"
                 >
                   Continue to DryRoute

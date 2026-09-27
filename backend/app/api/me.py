@@ -1,9 +1,10 @@
 """GET /me, PUT /me: the student's profile (docs/api-contracts.md)."""
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from app.integrations.google_calendar import request_store, session, check_origin
 
 router = APIRouter()
-USER = "demo"  # one demo user until Google login exists
+USER = "demo"  # SessionStore scopes this key to the connected browser
 
 
 class HomeIn(BaseModel):
@@ -34,12 +35,14 @@ def _profile(request: Request, user: dict) -> dict:
 
 @router.get("/me")
 def me(request: Request):
-    return _profile(request, request.app.state.store.get_user(USER))
+    return _profile(request, request_store(request).get_user(USER))
 
 
 @router.put("/me")
 def update_me(body: ProfileIn, request: Request):
+    check_origin(request)
     s = request.app.state
+    store = request_store(request)
     changes = body.model_dump(exclude_unset=True)
     if "home" in changes and changes["home"] is None:
         raise HTTPException(400, "home can be changed but not removed")
@@ -51,7 +54,11 @@ def update_me(body: ProfileIn, request: Request):
     if lot is not None and lot not in s.store.parking.index:
         raise HTTPException(404, f"Unknown parking_id {lot!r}")
 
-    user = {**s.store.get_user(USER), **changes}
-    s.store.save_user(USER, user)
-    s.alerts.invalidate()  # trip alerts depend on home and the preferred lot
+    user = {**store.get_user(USER), **changes}
+    store.save_user(USER, user)
+    current = session(request)
+    if current and current.get("alert_service"):
+        current["alert_service"].invalidate()
+    elif not current:
+        s.alerts.invalidate()
     return _profile(request, user)

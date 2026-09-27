@@ -1,3 +1,4 @@
+import CalendarPage from './pages/CalendarPage'
 import LoginPage from './pages/LoginPage'
 import GoogleCalendarPage from './pages/GoogleCalendarPage'
 import UserNamePage from './pages/UserNamePage'
@@ -13,6 +14,8 @@ export default function App() {
   if (pathname === '/setup') {
     return <GoogleCalendarPage />
   }
+
+  if (pathname === '/calendar' || pathname === '/dashboard') return <CalendarPage />
 
   return <LoginPage />
 }

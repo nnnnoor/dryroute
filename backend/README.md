@@ -16,6 +16,10 @@ No `.env` needed locally: by default it runs on the committed pipeline data
 (`data-pipeline/data/processed/`) and fake fixtures (`fixtures/`). See `.env.example` for the switches
 (`DATA_BACKEND=mongo`, `USE_FAKE_CALENDAR=false`, `CORS_ORIGINS`).
 
+### Google Calendar
+
+Follow [Google Calendar setup](../docs/google-calendar-setup.md) to enable the API, register the OAuth callback, and set backend credentials. The frontend setup button connects a private browser session; explicit demo calendars remain available without credentials. This prototype stores connected sessions in memory for one day and requires one backend worker.
+
 ### Traffic (TomTom)
 
 With `TOMTOM_API_KEY` in `backend/.env` (free key from developer.tomtom.com), each route's drive time and

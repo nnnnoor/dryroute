@@ -8,6 +8,7 @@ from app.api import alerts, calendar, dashboard, me, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
+from app.integrations.google_calendar import CalendarSessions, router as google_router
 from app.integrations.live_conditions import LiveConditions
 from app.integrations.tomtom import TomTomTraffic
 from app.services.alerts import AlertService
@@ -21,9 +22,8 @@ from app.services.trips import TripPlanner
 
 
 def make_calendar_source(settings: Settings):
-    if settings.use_fake_calendar:
-        return FakeCalendar(settings.fixtures_dir / "calendar.json")
-    raise NotImplementedError("Google Calendar is not wired up yet; use USE_FAKE_CALENDAR=true")
+    # Real Google sources are selected per request after OAuth, never shared globally.
+    return FakeCalendar(settings.fixtures_dir / "calendar.json")
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
     network = RoadNetwork(settings.data_dir / "graph.graphml")
     network.check_matches(store.segments.index)
     app.state.settings = settings
+    app.state.calendar_sessions = CalendarSessions()
     app.state.store = store
     app.state.network = network
     app.state.risk = RiskService(store, settings)
@@ -56,11 +57,13 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 app.include_router(risk.router)
 app.include_router(routes.router)
 app.include_router(parking.router)
 app.include_router(calendar.router)
+app.include_router(google_router)
 app.include_router(alerts.router)
 app.include_router(dashboard.router)
 app.include_router(me.router)

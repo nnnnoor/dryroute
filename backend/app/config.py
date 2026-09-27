@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
@@ -22,6 +23,12 @@ class Settings(BaseSettings):
     fixtures_dir: Path = BACKEND_DIR / "fixtures"
 
     use_fake_calendar: bool = True
+    google_client_id: str = ""
+    google_client_secret: str = Field(default="", repr=False)
+    google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+    frontend_url: str = "http://localhost:5173"
+    calendar_cookie_secure: bool = False
+    calendar_cookie_samesite: Literal["lax", "none"] = "lax"
     calendar_lookahead_days: int = 7    # how far ahead /calendar/next-event looks
     walk_m_per_min: float = 80          # walking speed from the lot to class
     walk_detour: float = 1.3            # real paths vs straight line

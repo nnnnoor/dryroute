@@ -22,7 +22,7 @@ TOKEN = re.compile(r"[A-Z][A-Z0-9/]*")
 class CalendarService:
     def __init__(self, source, store: Store, trips: TripPlanner, parking: ParkingService,
                  settings: Settings, buildings_path: Path):
-        self.source = source  # FakeCalendar now, GoogleCalendar later: both have list_events(time_min, time_max)
+        self.source = source  # FakeCalendar and GoogleCalendar both provide list_events(time_min, time_max)
         self.store = store
         self.trips = trips
         self.parking = parking
@@ -61,11 +61,11 @@ class CalendarService:
         if not in_person:
             return None, None
         event, building = self._event(in_person[0])
-        if building is None:
+        user = self.store.get_user()
+        if building is None or (from_lat is None and not user.get("home")):
             return {**event, "recommended_departure": None, "leave_in_minutes": None,
                     "trip": None, "route_query": None}, None
 
-        user = self.store.get_user()
         if from_lat is None:
             from_lat, from_lon = user["home"]["lat"], user["home"]["lon"]
         start = datetime.fromisoformat(in_person[0]["start"]["dateTime"])
