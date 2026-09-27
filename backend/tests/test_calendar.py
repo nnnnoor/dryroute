@@ -13,6 +13,10 @@ def calendar(client):
 @pytest.mark.parametrize("location, code", [
     ("PC 213", "PC"), ("PC213", "PC"), ("GL 100", "GL"), ("Graham Center (GC) 243", "GC"), ("AHC5 110", "AHC5"),
     ("Online (Zoom)", None), ("ECS 135", None), ("", None), (None, None),
+    # written by name, as students type them in Google Calendar
+    ("Parking Garage 6 115", "PG6"), ("Chem & Physics 197", "CP"), ("Chemistry and Physics 197", "CP"),
+    ("Green Library 100", "GL"), ("Graham Center 243", "GC"), ("Academic Health Center 1 110", "AHC1"),
+    ("Parking Garage 7", None), ("Library", None), ("Health Center", None), ("Zoom Online Meeting", None),
 ])
 def test_resolve_location(calendar, location, code):
     b = calendar.resolve(location)

@@ -10,7 +10,9 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 
-import { GOOGLE_CALENDAR_URL, getCalendarConnection, connectDemoCalendar, updateProfile } from '../services/calendarApi'
+import type { ChangeEvent, FormEvent } from 'react'
+import { GOOGLE_CALENDAR_URL, getCalendarConnection, connectDemoCalendar, updateProfile, importCalendarLink, uploadCalendarFile } from '../services/calendarApi'
+import type { CalendarImport } from '../services/calendarApi'
 
 import googleLogo from '../assets/image 5.png'
 
@@ -41,6 +43,9 @@ export default function GoogleCalendar({
   const [calendarConnected, setCalendarConnected] = useState(false)
   const [calendarSource, setCalendarSource] = useState('')
   const [busy, setBusy] = useState(false)
+  const [calendarLink, setCalendarLink] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importNote, setImportNote] = useState('')
   const [message, setMessage] = useState(() => {
     const outcome = new URLSearchParams(window.location.search).get('calendar')
     return ({ 'not-configured': 'Google Calendar needs the backend Google OAuth credentials first. You can try the demo schedule below.', denied: 'Google Calendar permission was declined. You can connect again.', error: 'Google authorization failed. Please try connecting again.', 'scope-denied': 'Please allow read-only Calendar access to connect.' } as Record<string, string>)[outcome || ''] || ''
@@ -142,8 +147,38 @@ export default function GoogleCalendar({
       setCalendarConnected(connection.connected)
       setCalendarSource(connection.source)
       setMessage('')
+      setImportNote('')
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not load the demo.') }
     finally { setBusy(false) }
+  }
+
+  // iCal link or .ics file: the student's real calendar without Google sign-in.
+  const importCalendar = async (load: () => Promise<CalendarImport>) => {
+    setImporting(true)
+    setMessage('')
+    setImportNote('')
+    try {
+      const result = await load()
+      setCalendarConnected(result.connected)
+      setCalendarSource(result.source)
+      const count = result.events_next_7_days
+      const unknown = result.upcoming.some(event => !event.building_found)
+      setImportNote(count === 0
+        ? 'Calendar connected, but it has no timed events in the next 7 days.'
+        : `Imported ✓ ${count} ${count === 1 ? 'event' : 'events'} in the next 7 days.${unknown ? ' Events that are online or not at an FIU building won’t get a leave-by time.' : ''}`)
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not import your calendar.') }
+    finally { setImporting(false) }
+  }
+
+  const importLink = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (calendarLink.trim()) void importCalendar(() => importCalendarLink(calendarLink.trim()))
+  }
+
+  const importFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = '' // choosing the same file again still imports
+    if (file) void importCalendar(() => uploadCalendarFile(file))
   }
 
   const completed =
@@ -285,7 +320,7 @@ export default function GoogleCalendar({
 
                     <div className="flex-1">
                       <h3 className="text-[15px] font-bold">
-                        Google Calendar
+                        Your Calendar
                       </h3>
 
                       <p className="mt-1 text-xs leading-5 text-[#5c7184]">
@@ -322,6 +357,50 @@ export default function GoogleCalendar({
                     )}
                   </button>
 
+                  {/* iCal link or file */}
+                  <div aria-hidden="true" className="mt-4 flex items-center gap-3 text-[10px] font-bold tracking-[0.18em] text-[#8497a6] uppercase">
+                    <span className="h-px flex-1 bg-[#dce7ee]" />
+                    or
+                    <span className="h-px flex-1 bg-[#dce7ee]" />
+                  </div>
+
+                  <form onSubmit={importLink} className="mt-3 flex gap-2" noValidate>
+                    <label htmlFor="calendar-link" className="sr-only">Calendar link</label>
+                    <input
+                      id="calendar-link"
+                      type="url"
+                      inputMode="url"
+                      autoComplete="off"
+                      value={calendarLink}
+                      onChange={event => { setCalendarLink(event.target.value); setMessage('') }}
+                      placeholder="Paste your calendar link"
+                      aria-describedby="calendar-link-help"
+                      className="min-h-11 min-w-0 flex-1 rounded-full border border-[#cfdee8] bg-[#f4f9fc] px-4 text-sm text-route-navy outline-none placeholder:text-[#8497a6] focus:border-route-navy focus:ring-2 focus:ring-route-navy/15"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || importing || !calendarLink.trim()}
+                      className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-route-navy px-4 text-sm font-semibold text-white transition hover:bg-[#0c375e] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-50"
+                    >
+                      {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Import'}
+                    </button>
+                  </form>
+
+                  <p id="calendar-link-help" className="mt-2 text-[10px] leading-4 text-[#5c7184]">
+                    Google Calendar: Settings → your calendar → Secret address in iCal format. Outlook, Apple and Canvas calendar links work too.
+                  </p>
+
+                  <label className={`mt-3 block w-full text-center text-xs font-semibold text-[#5c7184] underline ${busy || importing ? 'opacity-50' : 'cursor-pointer'}`}>
+                    Upload an .ics file instead
+                    <input type="file" accept=".ics,text/calendar" onChange={importFile} disabled={busy || importing} className="sr-only" />
+                  </label>
+
+                  {importNote && (
+                    <p role="status" className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs text-green-800">
+                      {importNote}
+                    </p>
+                  )}
+
                   <button type="button" onClick={useDemo} disabled={busy} className="mt-3 w-full text-xs font-semibold text-[#5c7184] underline disabled:opacity-50">
                     {calendarSource === 'demo' ? 'Demo schedule selected' : 'Try a demo schedule'}
                   </button>
@@ -329,6 +408,9 @@ export default function GoogleCalendar({
                   <p className="mt-2 text-center text-[10px] text-[#5c7184]">
                     Optional · Read-only calendar access
                   </p>
+                  {calendarSource === 'ics' && (
+                    <p className="mt-1 text-center text-[10px] text-[#5c7184]">Links refresh about every 30 minutes; uploaded files don’t update.</p>
+                  )}
 
                 </div>
 

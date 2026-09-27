@@ -235,6 +235,9 @@ def calendar_service(request):
     service.store = SessionStore(state.store, connection)
     if connection["source"] == "google":
         service.source = GoogleCalendar(state.settings, connection, state.calendar_sessions.lock)
+    elif connection["source"] == "ics":  # iCal link or file (integrations/ics_calendar.py)
+        from app.integrations.ics_calendar import IcsCalendar
+        service.source = IcsCalendar(state.settings, connection, state.calendar_sessions.lock)
     return service
 
 

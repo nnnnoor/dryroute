@@ -9,6 +9,7 @@ from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
 from app.integrations.google_calendar import CalendarSessions, router as google_router
+from app.integrations.ics_calendar import router as ics_router
 from app.integrations.live_conditions import LiveConditions
 from app.integrations.tomtom import TomTomTraffic
 from app.services.alerts import AlertService
@@ -64,6 +65,7 @@ app.include_router(routes.router)
 app.include_router(parking.router)
 app.include_router(calendar.router)
 app.include_router(google_router)
+app.include_router(ics_router)
 app.include_router(alerts.router)
 app.include_router(dashboard.router)
 app.include_router(me.router)
