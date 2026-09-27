@@ -48,7 +48,7 @@ def test_dry_day_has_no_alerts(alerts):
 def test_storm_route_alert(client, alerts):
     client.post("/demo/scenario", json={"scenario": "storm"})
     a = build(alerts)["route_flood"]
-    assert a["title"] == "Flooding likely on your route to COP 3530 Data Structures"
+    assert a["title"] == "High flood risk on your route to COP 3530 Data Structures"
     assert a["severity"] == "warning" and a["event_id"] and a["segment_id"]
     assert "Leave by" in a["message"] and a["message"].endswith("AM.")
     assert a["read"] is False and a["active"] is True and a["source"] == "trip"

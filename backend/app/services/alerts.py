@@ -113,7 +113,7 @@ class AlertService:
                         key=lambda s: s["risk_score"], default=None)
             alerts.append({**base, "key": f"route_flood|{event_id}", "type": "route_flood",
                            "severity": "critical" if trip["recommendation"]["action"] == "no_alternative" else "warning",
-                           "title": f"Flooding likely on your route to {name}",
+                           "title": f"High flood risk on your route to {name}",
                            "message": f"{route_text} Leave by {leave}.",
                            "segment_id": worst["segment_id"] if worst else None})
 

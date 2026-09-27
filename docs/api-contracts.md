@@ -131,8 +131,8 @@ FIU lot). Optional: `depart_at` or `arrive_by` (default: leave now).
 
   | `action` | When | Example `message` |
   |---|---|---|
-  | `safe` | not compromised | "No flooding expected on your usual route." |
-  | `reroute` | compromised; the safe route has < 200 m of high-risk road | "Flooding likely on Southwest 67th Avenue. Take the safer route (+0.1 min)." |
+  | `safe` | not compromised | "No high flood-risk roads on your usual route." |
+  | `reroute` | compromised; the safe route has < 200 m of high-risk road | "High flood risk on Southwest 67th Avenue. Take the safer route (+0.1 min)." |
   | `reroute_caution` | compromised; the safe route is better but still has ≥ 200 m | "The safer route avoids 1.9 km of flood-prone road but still crosses 1.6 km. Drive carefully (+1.2 min)." |
   | `no_alternative` | compromised; no different route exists | "No safer route: your trip has to cross 3.9 km of flood-prone road. Consider leaving later." |
 - `max_risk` / `risk_label`: the riskiest road on the route. `high_risk_m`: meters of high-risk road on it.
@@ -226,7 +226,7 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 [{"alert_id": "al_3725145b3f",
   "type": "route_flood",
   "severity": "warning",
-  "title": "Flooding likely on your route to COP 3530 Data Structures",
+  "title": "High flood risk on your route to COP 3530 Data Structures",
   "message": "The safer route avoids 6.9 km of flood-prone road but still crosses 1.2 km. Drive carefully (+1.4 min). Leave by 8:25 AM.",
   "source": "trip", "event_id": "fake0_20260928", "segment_id": "123_456_0", "parking_id": null,
   "read": false, "active": true,
@@ -315,8 +315,14 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 
 ## ML → backend: `risk_scores` collection
 
-**Status: proposal for the ML owner.** ML's scheduled job computes live risk and writes it to Mongo
-(db `flood`); the backend only reads. The job runs about hourly.
+**Status: implemented** by `data-pipeline/ml/publish.py` (`python -m ml.publish --scenario live|storm`,
+run from `data-pipeline/`; it needs the trained `artifacts/ml/model.joblib`). It computes risk and writes it
+to Mongo (db `flood`); the backend only reads. Rerun `live` at least every 3 h or the backend serves the static
+score; `storm` is published once and never goes stale.
+ML's high-risk roads are mostly residential streets (311 has almost no reports on state highways), so a
+Brickell→FIU commute on the highways isn't flagged even in the storm. The demo user's home is therefore in
+Shenandoah (SW 19th Ter, 25.75322, -80.24144): dry live run → "No high flood-risk roads", ML storm → reroute
+around SW 16th St.
 
 **`risk_scores`**: one doc per street (`street_id` from segments; the model works at street level, see
 `data-pipeline/ML_HANDOFF.md`). The backend applies it to both directions of the street.
@@ -328,7 +334,10 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 - `street_id` as its own field (the backend also accepts it as the part of `_id` after the last `|`).
   Every street in `segments` gets a doc (bridges included; they can just be low).
 - One set per scenario: `"live"` (real forecast) and `"storm"` (fixed heavy rain, e.g. 50 mm in 3 h, for the demo).
-  Suggest `_id` = `"<scenario>|<street_id>"` so both sets fit in one collection.
+  `_id` = `"<run_id>|<street_id>"`: each run's set is written beside the previous one, then the older set is
+  deleted after the new `risk_runs` doc is written.
+- Labels in `ml.publish`: `high` = the alert model's probability ≥ its frozen alert cutoff, `medium` ≥ half of it,
+  else `low`; bridges get no label. The probability rises with rain, so a dry day has almost no high roads.
 - **`risk_label` is defined by ML** (decided 2026-09-26). ML's `risk_score` is a percentile ranking (a typical
   street scores ~0.5 even on a dry day), so fixed cutoffs don't work; ML decides which scores mean
   `low` / `medium` / `high` for each run. The backend uses the label for map colors, the safe route's
@@ -346,6 +355,6 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 The backend serves the newest run per scenario. If there is none, or the live run is more than 3 h old,
 it falls back to the static `risk_score` in `segments` and reports `stale: true`.
 
-**Open questions for ML:** where the job runs (a laptop is fine for the demo; the backend host could also
-run it on a schedule), and whether it can score a future hour (for trips planned hours ahead).
+**Open questions for ML:** where the job runs on a schedule (it can't run inside the backend: ML needs
+pandas < 3 and the backend pins pandas 3, and `model.joblib` is not committed), and whether it can score a future hour (for trips planned hours ahead).
 Until then the backend uses the latest run for every trip time.

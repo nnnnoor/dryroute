@@ -7,8 +7,8 @@ the only collections it writes are its own `users`, `alerts` and `trips`.
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
-fresh ML run it serves the static score (stale). A user with no `users` doc gets the fixtures/user.json
-defaults, so the demo user needs no seeding.
+fresh ML run it serves the static score (stale). User profiles come from the users collection (_id =
+user_id); fields a user never saved come from fixtures/user.json, so the demo user needs no seeding.
 """
 from datetime import datetime, timezone
 

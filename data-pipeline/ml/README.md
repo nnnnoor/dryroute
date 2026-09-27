@@ -165,6 +165,18 @@ An explicitly synthetic offline demonstration is also available:
 
 The example is not live weather. It is dated and labeled as a synthetic scenario.
 
+## Publish live risk to Atlas
+
+```sh
+.venv/bin/python -m ml.publish --scenario live       # needs MONGO_URI in data-pipeline/.env
+.venv/bin/python -m ml.publish --dry-run             # score and summarize only
+```
+
+Scores today's forecast and writes `risk_scores` + `risk_runs` for the backend (see
+`docs/api-contracts.md`, "ML → backend"). Labels use the alert model's frozen cutoff: `high` at or
+above it, `medium` at or above half of it. The backend treats a live run older than 3 h as stale, so
+rerun it on a schedule. Same caveats as above: labels flag likely **311 reports**, not verified flooding.
+
 ## Backend integration
 
 Load the trusted local model once, then call the Python function when weather changes:
