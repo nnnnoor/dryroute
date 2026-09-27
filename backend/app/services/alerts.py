@@ -10,8 +10,9 @@ Each alert has a stable id per situation, so a rebuild updates it instead of add
 "read" (unless it got more severe), and marks alerts whose situation is over as resolved. A source that
 failed this time resolves nothing: "couldn't check" is not "all clear".
 
-Alert text is plain language: no measurements (km, ft, minutes) and no model levels, only what to do and
-when. The details stay on the /routes screen.
+Alert text names the level (the title starts with "Critical:", "Warning:" or "Info:"; the message says e.g.
+"moderate flood level" or "high") but never a measurement (km, ft, minutes): what to do and when, not how
+much. The details stay on the /routes screen.
 """
 import hashlib
 import time
@@ -97,6 +98,9 @@ class AlertService:
                 tide = self._tide_alert(conditions["tide"]["data"], at)
                 candidates += [tide] if tide else []
 
+        for c in candidates:
+            c["title"] = f"{c['severity'].capitalize()}: {c['title']}"
+
         self._save(user_id, candidates, checked, now)
 
     def _trip_alerts(self, event: dict, trip: dict) -> list[dict]:
@@ -151,7 +155,11 @@ class AlertService:
         return {"key": f"nws|{a['id']}", "source": "nws", "type": "weather_warning",
                 "severity": NWS_SEVERITY.get(a["severity"], "info"),
                 "title": a["event"],  # the official name, e.g. "Flood Warning"; its headline is all dates and times
-                "message": "The National Weather Service has issued this for your area. Avoid low-lying and flooded roads.",
+                "message": (f"The National Weather Service has issued this for your area (severity: "
+                            f"{a['severity'].lower()}). Avoid low-lying and flooded roads."
+                            if a.get("severity") and a["severity"] != "Unknown" else
+                            "The National Weather Service has issued this for your area. "
+                            "Avoid low-lying and flooded roads."),
                 "event_id": None, "segment_id": None, "parking_id": None, "expires_at": a.get("ends")}
 
     def _tide_alert(self, t: dict, at: datetime) -> dict | None:
@@ -160,8 +168,9 @@ class AlertService:
         return {"key": f"tide|{at.astimezone(MIAMI):%Y-%m-%d}", "source": "tide", "type": "tide",
                 "severity": "critical" if t["above_moderate"] else "warning",
                 "title": "High tide in Biscayne Bay",
-                "message": ("Estimated water levels in Biscayne Bay are high. Low-lying bayfront streets "
-                            "(Brickell, near the Miami River) may flood even without rain."),
+                "message": (f"Estimated water levels in Biscayne Bay are at the "
+                            f"{'moderate' if t['above_moderate'] else 'minor'} flood level. Low-lying bayfront "
+                            f"streets (Brickell, near the Miami River) may flood even without rain."),
                 "event_id": None, "segment_id": None, "parking_id": None, "expires_at": None}
 
     def _save(self, user_id: str, candidates: list[dict], checked: set[str], now: datetime) -> None:

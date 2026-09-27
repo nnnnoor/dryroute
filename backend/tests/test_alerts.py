@@ -49,7 +49,7 @@ def test_dry_day_has_no_alerts(alerts):
 def test_storm_route_alert(client, alerts):
     client.post("/demo/scenario", json={"scenario": "storm"})
     a = build(alerts)["route_flood"]
-    assert a["title"] == "Flooding expected on your route to COP 3530 Data Structures"
+    assert a["title"] == "Warning: Flooding expected on your route to COP 3530 Data Structures"
     assert a["severity"] == "warning" and a["event_id"] and a["segment_id"]
     assert a["message"].startswith("Estimated flood levels are high on your usual route")
     assert "Take the safer route" in a["message"] and a["message"].endswith("AM.")
@@ -63,7 +63,7 @@ def test_parking_alert_for_flood_prone_lot(client, alerts, monkeypatch):
     client.post("/demo/scenario", json={"scenario": "storm"})
     built = build(alerts)
     a = built["parking_flood"]
-    assert a["parking_id"] == W10 and a["title"] == "W10 Parking Lot may flood"
+    assert a["parking_id"] == W10 and a["title"] == "Warning: W10 Parking Lot may flood"
     assert a["message"].startswith("Estimated flood levels are high at W10 Parking Lot. Park at ")
     # the parking advice is its own alert, not repeated in the route alert
     assert "Park at" not in built["route_flood"]["message"]
@@ -86,9 +86,10 @@ def test_weather_warning_and_tide(alerts):
     alerts.live = FakeLive(nws=[FLOOD_WARNING], tide=HIGH_TIDE)
     built = build(alerts)
     w = built["weather_warning"]
-    assert w["title"] == "Flood Warning" and w["severity"] == "critical" and w["source"] == "nws"
+    assert w["title"] == "Critical: Flood Warning" and "severity: severe" in w["message"] and w["severity"] == "critical" and w["source"] == "nws"
     t = built["tide"]
-    assert t["severity"] == "critical" and t["message"].startswith("Estimated water levels in Biscayne Bay are high")
+    assert t["severity"] == "critical" and t["title"] == "Critical: High tide in Biscayne Bay"
+    assert t["message"].startswith("Estimated water levels in Biscayne Bay are at the moderate flood level.")
 
 
 def test_failed_source_does_not_clear_alerts(alerts):
@@ -152,8 +153,8 @@ def test_parsers():
     assert t["expected_peak_ft"] == pytest.approx(14.1) and t["above_minor"] and t["above_moderate"]
 
 
-def test_alert_text_has_no_measurements_or_levels(client, alerts, monkeypatch):
-    """Alerts say what to do, not how much: no km/m/ft/min and no model levels (names like "COP 3530" are fine)."""
+def test_alert_text_names_the_level_but_no_measurements(client, alerts, monkeypatch):
+    """Titles start with the severity; text never has km/m/ft/min (names like "COP 3530" are fine)."""
     store = client.app.state.store
     user = {**store.get_user(), "preferred_parking_id": W10}
     monkeypatch.setattr(store, "get_user", lambda user_id="demo": user)
@@ -164,4 +165,4 @@ def test_alert_text_has_no_measurements_or_levels(client, alerts, monkeypatch):
     for a in built.values():
         text = a["title"] + " " + a["message"]
         assert not re.search(r"\d\s*(km|m|ft|feet|min|minutes|%)(\W|$)", text), text
-        assert not re.search(r"\b(minor|moderate|medium)\b|\b(low|high)[ -](risk|hazard)\b", text, re.I), text
+        assert a["title"].startswith(f"{a['severity'].capitalize()}: "), text
