@@ -5,11 +5,15 @@ flood-prone access roads). The backend scales it by the rain level of the ML run
 low-lying lot is fine on a dry day and hazardous in a storm.
 """
 import math
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.db.store import Store
 from app.services.flood_risk import RiskService, risk_label
 from app.services.route_planner import M_PER_DEG_LAT, M_PER_DEG_LON_EQUATOR
+
+MIAMI = ZoneInfo("America/New_York")
 
 
 class ParkingService:
@@ -33,6 +37,16 @@ class ParkingService:
         """(parking_id, distance in m) of the closest lot a student can be sent to."""
         return min(((pid, distance_m((lon, lat), self._center[pid])) for pid in self._suggestable),
                    key=lambda t: t[1])
+
+    def search_minutes(self, parking_id: str, arrive: datetime) -> float:
+        """Minutes from reaching the lot to being parked: by lot type, more on weekday mornings."""
+        s = self.settings
+        minutes = s.parking_search_minutes.get(self.store.parking.at[parking_id, "type"], 3)
+        local = arrive.astimezone(MIAMI)
+        hour = local.hour + local.minute / 60
+        if local.weekday() < 5 and s.parking_peak_hours[0] <= hour < s.parking_peak_hours[1]:
+            minutes += s.parking_peak_extra_minutes
+        return minutes
 
     def rain_factor(self) -> float:
         level = self.risk.weather()["rain_level"]

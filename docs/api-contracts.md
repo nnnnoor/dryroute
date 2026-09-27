@@ -195,6 +195,7 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
     "parking_id": "way/112762942",
     "parking_name": "Gold Parking Garage",
     "parking_hazardous": false,
+    "parking_search_minutes": 9,
     "walk_minutes": 3
   },
   "route_query": {"from_lat": 25.7617, "from_lon": -80.1918, "parking_id": "way/112762942", "arrive_by": "2026-09-28T12:47:00Z"}
@@ -204,9 +205,11 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
 - `location` is the location text as typed in the calendar. It's matched to an FIU building code ("PC 213",
   "PC213", "Graham Center (GC) 243"). `location_point` is `null` when no building matched (then
   `recommended_departure`, `leave_in_minutes`, `trip` and `route_query` are `null` too).
-- `recommended_departure` = class start − 10 min buffer − walk from the lot − drive time of the route to take
+- `recommended_departure` = class start − 10 min buffer − walk from the lot − time to find a spot − drive time of the route to take
   (`take`: `safe` when the recommendation is to reroute, else `usual`), rounded down to the minute.
   `leave_in_minutes` is negative when that time has passed.
+- `parking_search_minutes`: estimated time from reaching the lot to being parked: garage 5, surface lot 3,
+  street-side 5, plus 4 on weekday mornings (7:30–11 am). Drive times include traffic (TomTom) when available.
 - Parking: the student's preferred lot, else the nearest usable lot to the building. If no lot is within ~800 m
   (e.g. the Engineering Center), the trip goes to the building and the parking fields are `null`/`false`.
 - Pass `route_query` straight to `GET /routes` to draw the trip.

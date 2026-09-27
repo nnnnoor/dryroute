@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # No usable ML run -> factor 1.0 (assume rain), same as the roads' static fallback.
     parking_rain_factor: dict[str, float] = {"none": 0.4, "light": 0.6, "moderate": 0.8, "heavy": 1.0}
     parking_alternatives: int = 3
+    # Time from reaching the lot to being parked (added to the calendar's leave-by). Estimates.
+    parking_search_minutes: dict[str, float] = {"garage": 5, "surface": 3, "street_side": 5}
+    parking_peak_extra_minutes: float = 4   # weekday mornings, when lots fill for class
+    parking_peak_hours: tuple[float, float] = (7.5, 11.0)  # Miami local time, 7:30-11:00
     # Lots rated and shown on the map, but never suggested to a student as somewhere to park
     parking_not_suggested: list[str] = ["Unnamed", "Loading Area", "Staff", "Compound"]
 
