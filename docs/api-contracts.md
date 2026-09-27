@@ -32,8 +32,10 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built |
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
-| `GET /alerts`, `POST /alerts/{alert_id}/read` | In-app alerts (poll every ~60 s) | planned |
-| `GET /dashboard` | Personal stats | planned |
+| `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh` | In-app alerts (poll every ~60 s) | ✅ built |
+| `POST /trips`, `GET /trips` | Record a trip the student starts (feeds the dashboard) | ✅ built |
+| `GET /dashboard` | Personal stats | ✅ built |
+| `POST /demo/seed-trips` | Fill the dashboard with a demo week | ✅ built |
 | `POST /demo/scenario` | Switch to the demo storm scores | ✅ built |
 
 ---
@@ -45,14 +47,15 @@ here first, then in code. Live, interactive docs for whatever is already built: 
   "scenario": "live",
   "computed_at": "2026-09-26T13:00:00Z",
   "stale": false,
-  "model_version": "rules-v1",
-  "rain": {"rain_mm_next_3h": 18.4, "rain_mm_last_24h": 41.0, "max_hourly_mm": 9.2},
+  "model_version": "daily_report_v2",
+  "rain": {"rain_mm": 35.0, "rain_lag1_mm": 12.0, "rain_prior3_mm": 24.0},
   "rain_level": "heavy"
 }
 ```
 The rain inputs of the ML run whose scores are being served. `scenario` is `"live"` or `"storm"` (demo).
 `stale: true` means the latest run is too old (or missing) and roads fall back to the static baseline score.
-`rain_level`: `none | light | moderate | heavy`.
+`rain_level`: `none | light | moderate | heavy`, from the day's total `rain_mm` (< 1, < 10, < 25, ≥ 25 mm).
+Rain fields are ML's daily inputs (Miami calendar days, mm; `rain_prior3_mm` includes yesterday).
 
 ### `GET /segments/risk`
 
@@ -211,23 +214,76 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
 `/calendar/events?hours=48` (1–168) returns a list of events with the fields `event_id, event_name, start_time,
 end_time, location, location_point`.
 
-### `GET /alerts`, `POST /alerts/{alert_id}/read`
+### `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh`
 
+Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each poll rebuilds the alerts
+(at most once a minute), so they follow the student's next class, the weather, the tide and the demo scenario.
 ```json
-[{"alert_id": "al_12", "created_at": "2026-09-26T11:50:00Z",
-  "type": "route_flood | parking_flood | closure | leave_earlier",
-  "severity": "info | warning | critical",
-  "title": "Flooding likely on your route to COP 3530",
-  "message": "SW 9th St is high risk. Leave by 12:15 and take the safer route (+3 min).",
-  "event_id": "abc", "segment_id": "123_456_0", "parking_id": null, "read": false}]
+[{"alert_id": "al_3725145b3f",
+  "type": "route_flood",
+  "severity": "warning",
+  "title": "Flooding likely on your route to COP 3530 Data Structures",
+  "message": "The safer route avoids 6.9 km of flood-prone road but still crosses 1.2 km. Drive carefully (+1.4 min). Leave by 8:25 AM.",
+  "source": "trip", "event_id": "fake0_20260928", "segment_id": "123_456_0", "parking_id": null,
+  "read": false, "active": true,
+  "created_at": "2026-09-28T11:00:00Z", "updated_at": "2026-09-28T11:00:00Z",
+  "resolved_at": null, "expires_at": "2026-09-28T13:00:00Z"}]
 ```
-Newest first. Poll about every 60 s and show unread ones as a banner/toast.
+| `type` | `source` | When | Links |
+|---|---|---|---|
+| `route_flood` | trip | next class (within 12 h): usual route is compromised | `event_id`, `segment_id` (worst street) |
+| `parking_flood` | trip | the lot for that class is high hazard | `event_id`, `parking_id` |
+| `leave_earlier` | trip | traffic adds ≥ 10 min (needs TomTom) | `event_id` |
+| `closure` | trip | construction/closure on the route | `event_id` |
+| `weather_warning` | nws | a National Weather Service flood alert is in effect | — |
+| `tide` | tide | Biscayne Bay (Virginia Key) at/above the NWS flood level | — |
+
+- **Sorted** most severe first, then most recently updated. `severity`: `info | warning | critical`.
+- **Stable ids:** the same situation keeps its `alert_id`, so `read` sticks across rebuilds (unless the alert
+  gets more severe, then it's unread again). `created_at` is when that situation started.
+- **Resolved:** when the situation is over (storm passed, lot fine again) the alert drops off the list
+  (`GET /alerts?include_resolved=true` still shows it with `active: false`, `resolved_at`).
+  If a source couldn't be checked, its alerts stay as they were: "couldn't check" is never "all clear".
+- `message` times are Miami local time ("Leave by 8:25 AM"); all timestamp fields are UTC as usual.
+- `POST /alerts/{alert_id}/read` → `{"alert_id": "...", "read": true}` (404 for an unknown id).
+- `POST /alerts/refresh` rebuilds right away and returns the list (e.g. right after `POST /demo/scenario` in the demo).
+
+### `POST /trips`, `GET /trips`
+
+**Call `POST /trips` when the student starts a trip** (taps "Go"), not on every `/routes` lookup: the
+dashboard counts these. Body: the same destination/time fields as `/routes` (`from_lat`, `from_lon`, then
+`to_lat`+`to_lon` or `parking_id`, optional `depart_at` or `arrive_by`), plus optional `take`
+(`"safe"` | `"usual"`, default: what the recommendation says) and `event_id` (when it's for a class).
+Returns the saved trip:
+```json
+{"trip_id": "tr_1a2b3c4d5e", "created_at": "2026-09-28T12:18:00Z",
+ "depart_at": "2026-09-28T12:18:33Z", "arrive_at": "2026-09-28T13:00:00Z",
+ "from": {"lat": 25.7617, "lon": -80.1918},
+ "destination": {"parking_id": "way/112781054", "name": "Parking Garage 6"},
+ "event_id": null, "scenario": "storm", "take": "safe", "recommendation": "reroute_caution",
+ "compromised": true, "eta_minutes": 41.5, "extra_minutes": 1.7,
+ "high_risk_m_avoided": 6932, "high_risk_segments_avoided": 32, "time_saved_minutes": 12.1,
+ "parking_id": "way/112781054", "parking_hazardous": false, "demo": false}
+```
+Errors as for `/routes` (400 / 404), plus 422 for a bad `take`. `GET /trips` lists them, newest first.
 
 ### `GET /dashboard`
 
 ```json
-{"trips_planned": 12, "time_saved_minutes": 34, "risky_segments_avoided": 19, "alerts_received": 7}
+{"trips_planned": 7, "time_saved_minutes": 34, "risky_segments_avoided": 97, "alerts_received": 4,
+ "high_risk_km_avoided": 21.0, "compromised_trips": 4, "safer_routes_taken": 3,
+ "recent_trips": [{"...": "latest 5 trips, same shape as POST /trips"}]}
 ```
+- `time_saved_minutes` is an **estimate**: driving into a flooded road typically costs ~15 min (crawling
+  through water, turning back, detouring). A compromised trip on the safe route saves 15 min × the share of
+  flood-prone road it avoided, minus the safe route's extra minutes (never below 0). Say "about" in the UI.
+- `risky_segments_avoided` / `high_risk_km_avoided`: high-risk road on the usual route that the taken safe
+  route skipped. `alerts_received` counts every alert ever raised, resolved ones included.
+
+### `POST /demo/seed-trips`
+
+Fills the dashboard with a realistic past week (6 trips, 3 in a storm), so the demo doesn't open on zeros.
+Replaces earlier demo trips (safe to call again); real trips stay. Returns the `/dashboard` body.
 
 ### `POST /demo/scenario`
 
@@ -262,8 +318,8 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 
 ```json
 {"_id": "2026-09-26T13:00Z-live", "scenario": "live", "computed_at": "2026-09-26T13:00:00Z",
- "model_version": "rules-v1",
- "rain": {"rain_mm_next_3h": 18.4, "rain_mm_last_24h": 41.0, "max_hourly_mm": 9.2},
+ "model_version": "daily_report_v2",
+ "rain": {"rain_mm": 35.0, "rain_lag1_mm": 12.0, "rain_prior3_mm": 24.0},
  "streets_scored": 23163}
 ```
 The backend serves the newest run per scenario. If there is none, or the live run is more than 3 h old,
