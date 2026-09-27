@@ -2,7 +2,7 @@
 
 The static layers (segments, parking, hotspots) are loaded into memory at startup in both modes:
 routing needs every segment anyway, and they only change when the pipeline is rerun. Time-varying
-data (closures; later users, trips, alerts) is read per request.
+data (closures, users, trips, alerts) is read per request.
 
 - LocalStore: committed pipeline files (data-pipeline/data/processed) + backend/fixtures. No network.
 - MongoStore (db/mongo.py): the same data from Atlas, plus ML's risk runs and live closures.
@@ -35,7 +35,12 @@ class Store:
         raise NotImplementedError
 
     def get_user(self, user_id: str = "demo") -> dict:
-        """User profile: home, preferred_parking_id, arrival_buffer_minutes (users collection)."""
+        """User profile: user_id, name, home, preferred_parking_id, arrival_buffer_minutes (users collection).
+        A user who never saved one gets the fixtures/user.json defaults."""
+        raise NotImplementedError
+
+    def save_user(self, user_id: str, user: dict) -> None:
+        """Replace the user's profile (PUT /me)."""
         raise NotImplementedError
 
     def get_alerts(self, user_id: str) -> list[dict]:
@@ -67,13 +72,16 @@ class LocalStore(Store):
         self.hotspots = gpd.read_file(d / "fiu_hotspots.geojson").set_index("hotspot_id", drop=False)
         with open(settings.fixtures_dir / "closures.json", encoding="utf-8") as f:
             self._closures = [_parse_closure(c) for c in json.load(f)]
-        with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
-            self._user = json.load(f)
+        self._default_user = load_default_user(settings)
+        self._users: dict[str, dict] = {}               # in memory: gone on restart
         self._alerts: dict[tuple[str, str], dict] = {}  # in memory: gone on restart
         self._trips: dict[tuple[str, str], dict] = {}   # same
 
     def get_user(self, user_id="demo"):
-        return self._user
+        return {**self._default_user, **self._users.get(user_id, {}), "user_id": user_id}
+
+    def save_user(self, user_id, user):
+        self._users[user_id] = dict(user)
 
     def get_alerts(self, user_id):
         return [dict(a) for (uid, _), a in self._alerts.items() if uid == user_id]
@@ -103,6 +111,12 @@ class LocalStore(Store):
 
     def risk_scores(self, run_id):
         return fake_scores(self.segments, run_id)
+
+
+def load_default_user(settings: Settings) -> dict:
+    """fixtures/user.json without its comment: the profile of a user who never saved one."""
+    with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
+        return {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 
 
 def fake_run(scenario: str) -> dict | None:

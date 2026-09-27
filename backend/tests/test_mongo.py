@@ -71,3 +71,19 @@ def test_trips_round_trip(stores):
     finally:
         mongo.db.trips.delete_many({"user_id": user})
     assert mongo.get_trips(user) == []
+
+
+def test_users_round_trip(stores):
+    """Saves a profile for a throwaway user in the backend's own `users` collection, then deletes it."""
+    local, mongo = stores
+    user = "pytest-users"
+    try:
+        assert mongo.get_user(user) == local.get_user(user)  # no doc yet: fixture defaults
+        profile = {**mongo.get_user(user), "name": "Alex", "arrival_buffer_minutes": 20}
+        mongo.save_user(user, profile)
+        mongo.save_user(user, {**profile, "name": "Sam"})  # upsert, not a second doc
+        assert mongo.get_user(user) == {**profile, "name": "Sam"}
+        assert mongo.db.users.count_documents({"_id": user}) == 1
+    finally:
+        mongo.db.users.delete_many({"_id": user})
+    assert mongo.get_user(user) == local.get_user(user)

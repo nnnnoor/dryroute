@@ -33,6 +33,7 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
 | `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh` | In-app alerts (poll every ~60 s) | ✅ built |
+| `GET /me`, `PUT /me` | Profile: name, home, preferred lot, arrival buffer | ✅ built |
 | `POST /trips`, `GET /trips` | Record a trip the student starts (feeds the dashboard) | ✅ built |
 | `GET /dashboard` | Personal stats | ✅ built |
 | `POST /demo/seed-trips` | Fill the dashboard with a demo week | ✅ built |
@@ -250,6 +251,23 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 - `message` times are Miami local time ("Leave by 8:25 AM"); all timestamp fields are UTC as usual.
 - `POST /alerts/{alert_id}/read` → `{"alert_id": "...", "read": true}` (404 for an unknown id).
 - `POST /alerts/refresh` rebuilds right away and returns the list (e.g. right after `POST /demo/scenario` in the demo).
+
+### `GET /me`, `PUT /me`
+
+The student's profile. The calendar's leave-by and trip alerts use it: `home` is where trips start when no
+`from_lat`/`from_lon` is given, `preferred_parking_id` is always the lot used for classes (however far; otherwise the
+nearest usable lot), and `arrival_buffer_minutes` is how early to be at class.
+```json
+{"user_id": "demo", "name": "Alex",
+ "home": {"label": "Brickell", "lat": 25.7617, "lon": -80.1918},
+ "preferred_parking_id": "way/112781054", "preferred_parking_name": "Parking Garage 6",
+ "arrival_buffer_minutes": 10}
+```
+`PUT /me` takes any subset of `name`, `home` (`label` optional, `lat` + `lon` required),
+`preferred_parking_id` and `arrival_buffer_minutes` (0–120); only the fields sent change. `null` clears `name`
+and `preferred_parking_id` (back to the nearest lot). Returns the updated profile. Errors: 404 for an unknown
+`parking_id`, 400 for `null` `home` or `arrival_buffer_minutes`, 422 for bad values (`name` over 60 characters).
+A new user starts with the defaults above (no name, home in Brickell, no preferred lot, 10 min).
 
 ### `POST /trips`, `GET /trips`
 

@@ -3,14 +3,13 @@
 Collections (db settings.mongo_db): segments, parking, fiu_hotspots and closures from the data pipeline;
 risk_runs and risk_scores from the ML job (docs/api-contracts.md). The static layers are loaded into
 memory at startup (~5 s); closures and risk runs are queried per request. The backend only reads those;
-the only collections it writes are its own `alerts` and `trips`.
+the only collections it writes are its own `users`, `alerts` and `trips`.
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
-fresh ML run it serves the static score (stale). The user profile comes from fixtures/user.json until
-there is a users collection.
+fresh ML run it serves the static score (stale). A user with no `users` doc gets the fixtures/user.json
+defaults, so the demo user needs no seeding.
 """
-import json
 from datetime import datetime, timezone
 
 import geopandas as gpd
@@ -19,7 +18,7 @@ from pymongo import DESCENDING, MongoClient
 from shapely.geometry import shape
 
 from app.config import Settings
-from app.db.store import Store, fake_run, fake_scores
+from app.db.store import Store, fake_run, fake_scores, load_default_user
 
 
 class MongoStore(Store):
@@ -33,11 +32,15 @@ class MongoStore(Store):
         self.segments = _frame(self.db.segments.find({}), "edge_id").set_index("edge_id", drop=False)
         self.parking = _frame(self.db.parking.find({}), None).set_index("osm_id", drop=False)
         self.hotspots = _frame(self.db.fiu_hotspots.find({}), None).set_index("hotspot_id", drop=False)
-        with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
-            self._user = json.load(f)
+        self._default_user = load_default_user(settings)
 
+    # users: the backend's own collection, one doc per user (_id = user_id)
     def get_user(self, user_id="demo"):
-        return self._user
+        doc = self.db.users.find_one({"_id": user_id}, {"_id": 0}) or {}
+        return {**self._default_user, **doc, "user_id": user_id}
+
+    def save_user(self, user_id, user):
+        self.db.users.replace_one({"_id": user_id}, {k: v for k, v in user.items() if k != "user_id"}, upsert=True)
 
     # alerts: the backend's own collection (never written by the pipeline or ML)
     def get_alerts(self, user_id):
