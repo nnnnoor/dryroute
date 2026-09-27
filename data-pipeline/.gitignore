@@ -14,3 +14,6 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 cache/
+
+# Reproducible ML model, sampled training data, and exports
+artifacts/

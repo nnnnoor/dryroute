@@ -300,7 +300,62 @@ Added 2026-09-26. **Project focus: students driving to FIU Modesto Maidique Camp
 2. Then Steps 3 → 5 → 4 → 6, rerunning 8 and 9 after each lands. (3, 5, 6, 7 done; 4 skipped for now.)
 3. Step 7 last, only if ahead.
 
+## ML next steps (decided 2026-09-26)
+
+- Goal: warn about a user's saved route **≤ 1 hour before** the calendar departure. The daily model
+  can't use that timing; an hourly/nowcast model is a later step.
+- Order: stale `alert_results.json` refreshed (done) → live conditions `ml/live.py` (done) →
+  street report-history feature (done, `daily_report_v2`) → route scoring `ml/route.py` with a
+  departure time (**on hold**) → multi-point rain → hourly model.
+- v2 report history: past report-days/year before d−7, frozen at the evaluated period's start
+  in tests. Test AP 0.00156 → 0.00210 (later dates), 0.00169 → 0.00240 (unseen streets); gain is
+  *where* (within-day AUC 0.731 → 0.755), not *when* (day-level AUC still ~0.58). Retrain needed:
+  old bundles lack `history` and are refused by `ml.predict`.
+- **Validation AP is unreliable:** the Jul–Sep 2023 validation AP of v2 (0.00684) hinges on one
+  report ranked #1; without it 0.00070. Judge candidates on three rolling dev windows (train through
+  2022-12-31 / 2023-03-31 / 2023-06-30, validate the next quarter; 627 reports) with a by-day
+  bootstrap. `ml.train` now selects on the median AP of these windows (`ROLLING_WINDOWS`);
+  boosting still wins, so the v2 model and its results are unchanged. **Last ML change (user decision).**
+- Step 2 candidates (2026-09-26), all rejected vs v2 on the rolling windows: neighbor history within
+  250 m (AP up in 1 of 2 informative windows, recall@1% 11.7 → 12.8%, 39% bootstrap wins); 7/30-day
+  antecedent rain (no gain); boosting grid (best is a tie with v2); rank blend of model + rain × history
+  rule (AP up in all 3 windows, recall@1% 11.7 → 15.5%, 90% wins, but ROC-AUC 0.860 → 0.809, which
+  fails the "AUC must not drop" rule; a trade-off for alerts vs. whole-network ranking).
+- New data tested 2026-09-26 (no keys): NOAA MRMS radar rain (AWS `noaa-mrms-pds`,
+  `MultiSensor_QPE_24H_Pass2` at local midnight = local-day totals, 1 km, cropped 13×23 cells; decode
+  with `eccodes`, pygrib won't build on Windows), USGS groundwater (39 wells, param 62610) and canal
+  stage (3 gauges, 00065) via `waterservices.usgs.gov/nwis/dv` bBox query.
+  - Canal stage: no signal. Groundwater (d−1): day-level AUC 0.625 alone, but mixed in the model.
+  - **Per-street radar for d−1 and prior 3 days**: rolling windows AUC 0.860 → 0.868, Apr–Jun AP 2.3×,
+    74% bootstrap wins (bar 80%). Held-out tests once: AP 0.00210 → 0.00501, 0.00240 → 0.00452; AUC
+    0.8279 → 0.8284, 0.8114 → 0.8110 (misses the "AUC up on both" rule by 0.0004). City day-level AUC
+    0.581 → 0.593 / 0.583 → 0.634; 1-km top-1% precision 11.5 → 16.1%. **Adoption pending user decision.**
+  - Feb 13, 2024 (39-street dry-day spike): radar also shows ≤ 3.6 mm, so that spike isn't rain.
+- Tide as a daily model feature: **tested and rejected (2026-09-26).** Daily max Virginia Key
+  water level (d, d-1) + tide × low-ground: validation AP 0.00055 → 0.00039 (worse); tests mixed
+  (city AUC 0.763 → 0.751, AP up slightly, 1-km top-1% precision 12% → 9%). Backtest: dry days at
+  NWS minor had more city reports (69% vs ~45% of days, 32 days, mostly October king tides),
+  but most dry-day report spikes had normal tides (likely rain the single weather point missed).
+  Tide stays a live coastal signal in `ml/live.py`, not a model input.
+- **No API keys or signups** for data sources (user decision). Live sources = NWS alerts,
+  NOAA Virginia Key tides, Open-Meteo 15-minute rain.
+- Miami-Dade Flooding Vulnerability Viewer (experience.arcgis.com/experience/2bdfdae22dea4bd699d11714c9aba709):
+  planning layers only (FEMA, SLR, storm surge, 2040 groundwater, king-tide raster). No live data.
+  The king-tide raster (`gisweb.miamidade.gov/.../VulnerabilityViewer/MD_SeaLevelRise/MapServer` layer 0)
+  is identify-able but only thin shoreline slivers.
+- Live sources tested 2026-09-26:
+  - Works, no key: NWS alerts `api.weather.gov/alerts/active?point=lat,lon` (Coastal Flood Statement was
+    active; zone FLZ173, no polygon for that type). NOAA CO-OPS Virginia Key `8723214` observed
+    `water_level` + `predictions` (`datum=STND`, ft) and flood thresholds
+    `mdapi/.../stations/8723214/floodlevels.json` (NWS minor 13.66 ft). Open-Meteo `minutely_15=precipitation`.
+  - Needs a key: FL511 `fl511.com/api/v2/get/event` ("Invalid Key"); flood event content unconfirmed.
+  - Not usable: USGS Real-Time Flood Impact (2 FL sites, none in Miami); City 311 FeatureServer frozen at
+    2024-08-10; Floodi (no public API found).
+
 ## Progress
+
+- [x] ML: daily rainfall join, weighted street-day training, temporal/grouped tests,
+  baseline and model score exports (`ml/README.md`); original pipeline/Atlas unchanged.
 
 - [x] Step 0 — Scaffold
 - [x] Step 1 — Roads

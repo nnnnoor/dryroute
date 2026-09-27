@@ -1,0 +1,474 @@
+{
+  "version": "daily_report_v2",
+  "created_at": "2026-09-26T23:09:53.910170+00:00",
+  "status": "experimental",
+  "selected_model": "gradient_boosting",
+  "features": [
+    "fema_risk_level",
+    "elev_p10",
+    "sink_p90",
+    "log_length",
+    "log_drain_count",
+    "is_tunnel",
+    "city",
+    "log_rain",
+    "log_rain_lag1",
+    "log_rain_prior3",
+    "rain_x_static",
+    "log_report_rate",
+    "rain_x_history"
+  ],
+  "prediction_target": "recorded_flood_report",
+  "training_end": "2023-06-30",
+  "refit_through": "2023-09-30",
+  "audit": {
+    "flood_links": 3202,
+    "outside_window_links": 23,
+    "bridge_links": 0,
+    "segments": 36371,
+    "streets": 23163,
+    "positive_street_days": 1760,
+    "sampled_rows": 277495,
+    "negative_fraction": 0.02
+  },
+  "data_sha256": {
+    "data\\processed\\segments.parquet": "b1edb61ddaf1d63d5eeeff5c8daaacf9d7c63dd3cc7f10cf532699979cc9f181",
+    "data\\processed\\flood_reports.parquet": "d599ba917a1adb5279c01a4fb19d9bc2f4cf79db10520616d7c82c7d243b0994",
+    "data\\raw\\ml_weather_archive.json": "6d7b38687d7c5706c76de73a7650f0ec862569e2294277acdcc564b7754b3f0c"
+  },
+  "sklearn_version": "1.9.1",
+  "pandas_version": "2.3.3",
+  "split_summary": {
+    "future_test": {
+      "rows": 71753,
+      "positives": 565,
+      "represented_days": 3554108.0
+    },
+    "train": {
+      "rows": 154405,
+      "positives": 707,
+      "represented_days": 7678398.0
+    },
+    "unseen_streets_test": {
+      "rows": 17500,
+      "positives": 118,
+      "represented_days": 855236.0
+    },
+    "validation": {
+      "rows": 33837,
+      "positives": 165,
+      "represented_days": 1681760.0
+    }
+  },
+  "selection_rule": "Median average precision over rolling quarterly validation windows; mean ROC-AUC breaks ties",
+  "validation": {
+    "logistic": {
+      "windows": [
+        {
+          "train_through": "2022-12-31",
+          "validate": [
+            "2023-01-01",
+            "2023-03-31"
+          ],
+          "overall": {
+            "evaluated_rows": 33055,
+            "positive_rows": 115,
+            "represented_street_days": 1645200.0000000002,
+            "prevalence": 6.99003160709944e-05,
+            "average_precision": 0.0003062095607913827,
+            "roc_auc": 0.7233612111662345,
+            "brier_score": 6.989941079592298e-05
+          },
+          "city": {
+            "evaluated_rows": 15323,
+            "positive_rows": 113,
+            "represented_street_days": 759060.0000000001,
+            "prevalence": 0.00014886833715384816,
+            "average_precision": 0.0003208448456125174,
+            "roc_auc": 0.5660465814773962,
+            "brier_score": 0.00014885822799415505
+          },
+          "county": {
+            "evaluated_rows": 17732,
+            "positive_rows": 2,
+            "represented_street_days": 886139.9999999999,
+            "prevalence": 2.2569797097524098e-06,
+            "average_precision": 0.00010931903517528574,
+            "roc_auc": 0.6787367788951004,
+            "brier_score": 2.2639584040999826e-06
+          }
+        },
+        {
+          "train_through": "2023-03-31",
+          "validate": [
+            "2023-04-01",
+            "2023-06-30"
+          ],
+          "overall": {
+            "evaluated_rows": 33652,
+            "positive_rows": 347,
+            "represented_street_days": 1663480.0,
+            "prevalence": 0.00020859884098396134,
+            "average_precision": 0.0007722257221459425,
+            "roc_auc": 0.6668222728679476,
+            "brier_score": 0.00020854634069385368
+          },
+          "city": {
+            "evaluated_rows": 15711,
+            "positive_rows": 333,
+            "represented_street_days": 767494.0,
+            "prevalence": 0.00043387961339111446,
+            "average_precision": 0.0008481693035457495,
+            "roc_auc": 0.5638167676904542,
+            "brier_score": 0.0004337564776130174
+          },
+          "county": {
+            "evaluated_rows": 17941,
+            "positive_rows": 14,
+            "represented_street_days": 895985.9999999999,
+            "prevalence": 1.562524414443976e-05,
+            "average_precision": 2.7748432108424196e-05,
+            "roc_auc": 0.481098314779108,
+            "brier_score": 1.5633249613595013e-05
+          }
+        },
+        {
+          "train_through": "2023-06-30",
+          "validate": [
+            "2023-07-01",
+            "2023-09-30"
+          ],
+          "overall": {
+            "evaluated_rows": 33837,
+            "positive_rows": 165,
+            "represented_street_days": 1681760.0,
+            "prevalence": 9.811150223575302e-05,
+            "average_precision": 0.000669494425856847,
+            "roc_auc": 0.8409867350875395,
+            "brier_score": 9.809527565282e-05
+          },
+          "city": {
+            "evaluated_rows": 15699,
+            "positive_rows": 151,
+            "represented_street_days": 775928.0,
+            "prevalence": 0.0001946056850635626,
+            "average_precision": 0.0007187370178385796,
+            "roc_auc": 0.7425522908742752,
+            "brier_score": 0.00019455752390045645
+          },
+          "county": {
+            "evaluated_rows": 18138,
+            "positive_rows": 14,
+            "represented_street_days": 905831.9999999999,
+            "prevalence": 1.545540453417411e-05,
+            "average_precision": 7.817416868168497e-05,
+            "roc_auc": 0.7603659553717655,
+            "brier_score": 1.5466532841468597e-05
+          }
+        }
+      ],
+      "median_average_precision": 0.000669494425856847,
+      "mean_roc_auc": 0.7437234063739071
+    },
+    "gradient_boosting": {
+      "windows": [
+        {
+          "train_through": "2022-12-31",
+          "validate": [
+            "2023-01-01",
+            "2023-03-31"
+          ],
+          "overall": {
+            "evaluated_rows": 33055,
+            "positive_rows": 115,
+            "represented_street_days": 1645200.0000000002,
+            "prevalence": 6.99003160709944e-05,
+            "average_precision": 0.0005494929930400054,
+            "roc_auc": 0.8816049342223529,
+            "brier_score": 6.988753731731234e-05
+          },
+          "city": {
+            "evaluated_rows": 15323,
+            "positive_rows": 113,
+            "represented_street_days": 759060.0000000001,
+            "prevalence": 0.00014886833715384816,
+            "average_precision": 0.0005528856406551534,
+            "roc_auc": 0.754790524833737,
+            "brier_score": 0.00014884135215835367
+          },
+          "county": {
+            "evaluated_rows": 17732,
+            "positive_rows": 2,
+            "represented_street_days": 886139.9999999999,
+            "prevalence": 2.2569797097524098e-06,
+            "average_precision": 0.0049637413200712445,
+            "roc_auc": 0.9475188679633137,
+            "brier_score": 2.2563699021851144e-06
+          }
+        },
+        {
+          "train_through": "2023-03-31",
+          "validate": [
+            "2023-04-01",
+            "2023-06-30"
+          ],
+          "overall": {
+            "evaluated_rows": 33652,
+            "positive_rows": 347,
+            "represented_street_days": 1663480.0,
+            "prevalence": 0.00020859884098396134,
+            "average_precision": 0.0013239147226504053,
+            "roc_auc": 0.866568347864369,
+            "brier_score": 0.0002084702850795193
+          },
+          "city": {
+            "evaluated_rows": 15711,
+            "positive_rows": 333,
+            "represented_street_days": 767494.0,
+            "prevalence": 0.00043387961339111446,
+            "average_precision": 0.0013621889211478785,
+            "roc_auc": 0.7475687849930059,
+            "brier_score": 0.00043360194283013334
+          },
+          "county": {
+            "evaluated_rows": 17941,
+            "positive_rows": 14,
+            "represented_street_days": 895985.9999999999,
+            "prevalence": 1.562524414443976e-05,
+            "average_precision": 0.00026650573274467786,
+            "roc_auc": 0.8196194023589478,
+            "brier_score": 1.562441858869263e-05
+          }
+        },
+        {
+          "train_through": "2023-06-30",
+          "validate": [
+            "2023-07-01",
+            "2023-09-30"
+          ],
+          "overall": {
+            "evaluated_rows": 33837,
+            "positive_rows": 165,
+            "represented_street_days": 1681760.0,
+            "prevalence": 9.811150223575302e-05,
+            "average_precision": 0.006841780835152125,
+            "roc_auc": 0.8327318748117135,
+            "brier_score": 9.82010193210479e-05
+          },
+          "city": {
+            "evaluated_rows": 15699,
+            "positive_rows": 151,
+            "represented_street_days": 775928.0,
+            "prevalence": 0.0001946056850635626,
+            "average_precision": 0.0074589716437379475,
+            "roc_auc": 0.719319028560454,
+            "brier_score": 0.000194800600819684
+          },
+          "county": {
+            "evaluated_rows": 18138,
+            "positive_rows": 14,
+            "represented_street_days": 905831.9999999999,
+            "prevalence": 1.545540453417411e-05,
+            "average_precision": 0.07190082829245702,
+            "roc_auc": 0.7225518772801154,
+            "brier_score": 1.545463801295356e-05
+          }
+        }
+      ],
+      "median_average_precision": 0.0013239147226504053,
+      "mean_roc_auc": 0.8603017189661452
+    }
+  },
+  "tests": {
+    "future_test": {
+      "model": {
+        "overall": {
+          "evaluated_rows": 3554108,
+          "positive_rows": 565,
+          "represented_street_days": 3554108.0,
+          "prevalence": 0.00015897097105659142,
+          "average_precision": 0.0020972322399789613,
+          "roc_auc": 0.8279244402319164,
+          "brier_score": 0.00015881248276738852
+        },
+        "city": {
+          "evaluated_rows": 2648276,
+          "positive_rows": 557,
+          "represented_street_days": 2648276.0,
+          "prevalence": 0.00021032550987887968,
+          "average_precision": 0.0021229504527465284,
+          "roc_auc": 0.7803740974609151,
+          "brier_score": 0.00021011317848624407
+        },
+        "county": {
+          "evaluated_rows": 905832,
+          "positive_rows": 8,
+          "represented_street_days": 905832.0,
+          "prevalence": 8.831659733813775e-06,
+          "average_precision": 0.12503873692872206,
+          "roc_auc": 0.8342304906913485,
+          "brier_score": 8.83058628377117e-06
+        }
+      },
+      "physical_baseline": {
+        "overall": {
+          "evaluated_rows": 3554108,
+          "positive_rows": 565,
+          "represented_street_days": 3554108.0,
+          "prevalence": 0.00015897097105659142,
+          "average_precision": 0.00027498881928422964,
+          "roc_auc": 0.5896617099027422,
+          "brier_score": null
+        },
+        "city": {
+          "evaluated_rows": 2648276,
+          "positive_rows": 557,
+          "represented_street_days": 2648276.0,
+          "prevalence": 0.00021032550987887968,
+          "average_precision": 0.00034331530806800434,
+          "roc_auc": 0.61171522990329,
+          "brier_score": null
+        },
+        "county": {
+          "evaluated_rows": 905832,
+          "positive_rows": 8,
+          "represented_street_days": 905832.0,
+          "prevalence": 8.831659733813775e-06,
+          "average_precision": 1.5564288312817677e-05,
+          "roc_auc": 0.5882599710319002,
+          "brier_score": null
+        }
+      },
+      "constant_baseline": {
+        "overall": {
+          "evaluated_rows": 3554108,
+          "positive_rows": 565,
+          "represented_street_days": 3554108.0,
+          "prevalence": 0.00015897097105659142,
+          "average_precision": 0.00015897097105659142,
+          "roc_auc": 0.5,
+          "brier_score": 0.00015895003026285902
+        },
+        "city": {
+          "evaluated_rows": 2648276,
+          "positive_rows": 557,
+          "represented_street_days": 2648276.0,
+          "prevalence": 0.00021032550987887968,
+          "average_precision": 0.00021032550987887968,
+          "roc_auc": 0.5,
+          "brier_score": 0.0002102950006231933
+        },
+        "county": {
+          "evaluated_rows": 905832,
+          "positive_rows": 8,
+          "represented_street_days": 905832.0,
+          "prevalence": 8.831659733813775e-06,
+          "average_precision": 8.831659733813775e-06,
+          "roc_auc": 0.5,
+          "brier_score": 8.838693142968446e-06
+        }
+      }
+    },
+    "unseen_streets_test": {
+      "model": {
+        "overall": {
+          "evaluated_rows": 855236,
+          "positive_rows": 118,
+          "represented_street_days": 855236.0,
+          "prevalence": 0.0001379736119620783,
+          "average_precision": 0.002404274791616294,
+          "roc_auc": 0.8114170564863264,
+          "brier_score": 0.00013785881582094125
+        },
+        "city": {
+          "evaluated_rows": 631768,
+          "positive_rows": 112,
+          "represented_street_days": 631768.0,
+          "prevalence": 0.0001772802674399463,
+          "average_precision": 0.0025102379735540237,
+          "roc_auc": 0.7696982571548889,
+          "brier_score": 0.00017712774063433594
+        },
+        "county": {
+          "evaluated_rows": 223468,
+          "positive_rows": 6,
+          "represented_street_days": 223468.0,
+          "prevalence": 2.6849481805001162e-05,
+          "average_precision": 0.0031145051129637218,
+          "roc_auc": 0.788603506039804,
+          "brier_score": 2.6841354298446985e-05
+        }
+      },
+      "physical_baseline": {
+        "overall": {
+          "evaluated_rows": 855236,
+          "positive_rows": 118,
+          "represented_street_days": 855236.0,
+          "prevalence": 0.0001379736119620783,
+          "average_precision": 0.00019800064146463837,
+          "roc_auc": 0.5942033631913066,
+          "brier_score": null
+        },
+        "city": {
+          "evaluated_rows": 631768,
+          "positive_rows": 112,
+          "represented_street_days": 631768.0,
+          "prevalence": 0.0001772802674399463,
+          "average_precision": 0.00024397640770044426,
+          "roc_auc": 0.6029919342399751,
+          "brier_score": null
+        },
+        "county": {
+          "evaluated_rows": 223468,
+          "positive_rows": 6,
+          "represented_street_days": 223468.0,
+          "prevalence": 2.6849481805001162e-05,
+          "average_precision": 0.0003255738449381583,
+          "roc_auc": 0.8659354461459519,
+          "brier_score": null
+        }
+      },
+      "constant_baseline": {
+        "overall": {
+          "evaluated_rows": 855236,
+          "positive_rows": 118,
+          "represented_street_days": 855236.0,
+          "prevalence": 0.0001379736119620783,
+          "average_precision": 0.0001379736119620783,
+          "roc_auc": 0.5,
+          "brier_score": 0.00013795658343075226
+        },
+        "city": {
+          "evaluated_rows": 631768,
+          "positive_rows": 112,
+          "represented_street_days": 631768.0,
+          "prevalence": 0.0001772802674399463,
+          "average_precision": 0.0001772802674399463,
+          "roc_auc": 0.5,
+          "brier_score": 0.00017725591522806342
+        },
+        "county": {
+          "evaluated_rows": 223468,
+          "positive_rows": 6,
+          "represented_street_days": 223468.0,
+          "prevalence": 2.6849481805001162e-05,
+          "average_precision": 2.6849481805001162e-05,
+          "roc_auc": 0.5,
+          "brier_score": 2.6853158103977547e-05
+        }
+      }
+    }
+  },
+  "test_evaluation": "Full eligible street-day populations; no negative sampling in tests",
+  "limitations": [
+    "Labels are reports, not confirmed flooding; unreported days are noisy negatives",
+    "Validation uses inverse-probability weighted sampled negatives; final test metrics use all negatives",
+    "Historical rainfall is reanalysis, not a forecast backtest",
+    "One weather point for the whole area; daily timing cannot resolve hourly commutes",
+    "Static layers reflect current data, not necessarily their historical state",
+    "Held-out groups prevent twin/ticket leakage, not all nearby-street spatial dependence",
+    "Bridge labels are structurally absent; bridge scores use an explicit policy fallback",
+    "Relative scores are ranks, not physical flood probabilities or road-passability guarantees",
+    "Report history measures where people report, not only where it floods; serving history ends with the last 311 record (2024-08-09)"
+  ]
+}

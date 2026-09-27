@@ -1,0 +1,159 @@
+{
+  "status": "experimental_report_alert",
+  "prediction_target": "recorded_flood_report",
+  "threshold": 0.001036200320450404,
+  "comparison": ">=",
+  "training_through": "2023-06-30",
+  "policy_version": "full_validation_budget_v2",
+  "selected_model": "logistic",
+  "selection_rule": "Maximum full-validation recall with at most 1% validation road-days flagged; precision breaks model ties",
+  "validation_alert_budget": 0.01,
+  "selection_note": "Budget is a prototype tradeoff, not a safety threshold or a guaranteed future rate. Test periods were examined in earlier iterations: results are retrospective, not a fresh blind test.",
+  "validation_candidates": {
+    "logistic": {
+      "threshold": 0.001036200320450404,
+      "metrics": {
+        "tp": 21.0,
+        "fp": 16796.0,
+        "fn": 144.0,
+        "tn": 1664799.0,
+        "precision": 0.0012487363976928108,
+        "recall": 0.12727272727272726,
+        "false_positive_rate": 0.009988136263487938,
+        "false_discovery_rate": 0.9987512636023071,
+        "accuracy": 0.989927219103796,
+        "alert_rate": 0.00999964323090096,
+        "f2": 0.006007896092006637
+      }
+    },
+    "gradient_boosting": {
+      "threshold": 0.0025609054328647267,
+      "metrics": {
+        "tp": 21.0,
+        "fp": 16796.0,
+        "fn": 144.0,
+        "tn": 1664799.0,
+        "precision": 0.0012487363976928108,
+        "recall": 0.12727272727272726,
+        "false_positive_rate": 0.009988136263487938,
+        "false_discovery_rate": 0.9987512636023071,
+        "accuracy": 0.989927219103796,
+        "alert_rate": 0.00999964323090096,
+        "f2": 0.006007896092006637
+      }
+    },
+    "balanced_boosting": {
+      "threshold": 0.0017296296948194295,
+      "metrics": {
+        "tp": 20.0,
+        "fp": 16784.0,
+        "fn": 145.0,
+        "tn": 1664811.0,
+        "precision": 0.00119019281123542,
+        "recall": 0.12121212121212122,
+        "false_positive_rate": 0.00998100018137542,
+        "false_discovery_rate": 0.9988098071887646,
+        "accuracy": 0.9899337598706117,
+        "alert_rate": 0.009991913233755114,
+        "f2": 0.0057260650480989465
+      }
+    }
+  },
+  "validation": {
+    "tp": 21.0,
+    "fp": 16796.0,
+    "fn": 144.0,
+    "tn": 1664799.0,
+    "precision": 0.0012487363976928108,
+    "recall": 0.12727272727272726,
+    "false_positive_rate": 0.009988136263487938,
+    "false_discovery_rate": 0.9987512636023071,
+    "accuracy": 0.989927219103796,
+    "alert_rate": 0.00999964323090096,
+    "f2": 0.006007896092006637
+  },
+  "tests": {
+    "future_test": {
+      "overall": {
+        "tp": 80.0,
+        "fp": 24764.0,
+        "fn": 485.0,
+        "tn": 3528779.0,
+        "precision": 0.0032200933827080985,
+        "recall": 0.1415929203539823,
+        "false_positive_rate": 0.006968819569652035,
+        "false_discovery_rate": 0.9967799066172919,
+        "accuracy": 0.9928958264633488,
+        "alert_rate": 0.00699022089368134,
+        "f2": 0.01475796930342385
+      },
+      "city": {
+        "tp": 79.0,
+        "fp": 24761.0,
+        "fn": 478.0,
+        "tn": 2622958.0,
+        "precision": 0.003180354267310789,
+        "recall": 0.14183123877917414,
+        "false_positive_rate": 0.009351823210846771,
+        "false_discovery_rate": 0.9968196457326892,
+        "accuracy": 0.9904696489338725,
+        "alert_rate": 0.009379687011474635,
+        "f2": 0.014592877198167578
+      },
+      "county": {
+        "tp": 1.0,
+        "fp": 3.0,
+        "fn": 7.0,
+        "tn": 905821.0,
+        "precision": 0.25,
+        "recall": 0.125,
+        "false_positive_rate": 3.3119016497686087e-06,
+        "false_discovery_rate": 0.75,
+        "accuracy": 0.9999889604253327,
+        "alert_rate": 4.4158298669068875e-06,
+        "f2": 0.1388888888888889
+      }
+    },
+    "unseen_streets_test": {
+      "overall": {
+        "tp": 16.0,
+        "fp": 6053.0,
+        "fn": 102.0,
+        "tn": 849065.0,
+        "precision": 0.0026363486571099027,
+        "recall": 0.13559322033898305,
+        "false_positive_rate": 0.007078555240329405,
+        "false_discovery_rate": 0.9973636513428901,
+        "accuracy": 0.9928031560879103,
+        "alert_rate": 0.007096286872863163,
+        "f2": 0.012230545788105795
+      },
+      "city": {
+        "tp": 16.0,
+        "fp": 6053.0,
+        "fn": 96.0,
+        "tn": 625603.0,
+        "precision": 0.0026363486571099027,
+        "recall": 0.14285714285714285,
+        "false_positive_rate": 0.009582747571462949,
+        "false_discovery_rate": 0.9973636513428901,
+        "accuracy": 0.9902669967456408,
+        "alert_rate": 0.009606374491902091,
+        "f2": 0.012275586926499923
+      },
+      "county": {
+        "tp": 0.0,
+        "fp": 0.0,
+        "fn": 6.0,
+        "tn": 223462.0,
+        "precision": null,
+        "recall": 0.0,
+        "false_positive_rate": 0.0,
+        "false_discovery_rate": null,
+        "accuracy": 0.999973150518195,
+        "alert_rate": 0.0,
+        "f2": 0.0
+      }
+    }
+  }
+}
