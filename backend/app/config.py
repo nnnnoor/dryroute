@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     # Pipeline outputs (graph.graphml, segments.parquet, fiu_parking.geojson, ...), committed to git
     data_dir: Path = REPO_ROOT / "data-pipeline" / "data" / "processed"
+    # DATA_BACKEND=mongo only: segments / parking / hotspots from Atlas ("mongo", ~15 s at startup) or from
+    # data_dir ("files", ~2 s; same data). "files" on Vercel, where every cold start pays for it.
+    static_data: Literal["mongo", "files"] = "mongo"
     fixtures_dir: Path = BACKEND_DIR / "fixtures"
 
     use_fake_calendar: bool = True

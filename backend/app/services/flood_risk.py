@@ -8,6 +8,9 @@ Labels (low / medium / high) are ML's: its risk_score is a percentile ranking, s
 scores mean "high". The backend's own cutoffs (settings.risk_medium / risk_high) are only a fallback,
 for the static score and for streets a run left unlabeled.
 """
+import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -21,6 +24,7 @@ from app.timeutil import iso_utc
 SCENARIOS = ("live", "storm")
 LABELS = ("low", "medium", "high")
 LABEL_RANK = {label: i for i, label in enumerate(LABELS)}
+_scenario_override: ContextVar[str | None] = ContextVar("scenario_override", default=None)  # RiskService.using
 
 
 def risk_label(score: float, settings: Settings) -> str:
@@ -56,20 +60,40 @@ class RiskService:
     def __init__(self, store: Store, settings: Settings):
         self.store = store
         self.settings = settings
-        self.scenario = "live"
-        self._cached_key = None
-        self._cached = None  # (scores, labels), both indexed by edge_id
+        # run _id (or "static") -> (scores, labels), both indexed by edge_id. A few entries, so switching
+        # between live and storm doesn't re-download a run's ~23k scores each time.
+        self._cache: dict[str, tuple[pd.Series, pd.Series]] = {}
+        self._cache_lock = threading.Lock()
         segs = store.segments
         # One row per physical street (street_id is always one of its edge_ids), for map display
         self._streets = segs[segs["edge_id"] == segs["street_id"]]
 
+    @property
+    def scenario(self) -> str:
+        """The demo switch, "live" or "storm". Kept in the store, so every user and server copy shares it."""
+        return _scenario_override.get() or self.store.demo_scenario()
+
+    @scenario.setter
+    def scenario(self, value: str) -> None:
+        self.store.set_demo_scenario(value)
+
+    @contextmanager
+    def using(self, scenario: str):
+        """Plan with `scenario` in this request only, leaving the shared switch alone (demo trips)."""
+        token = _scenario_override.set(scenario)
+        try:
+            yield
+        finally:
+            _scenario_override.reset(token)
+
     def current_run(self) -> tuple[dict | None, bool]:
         """(run, stale). Stale means the static score is served instead of the run's scores."""
-        run = self.store.latest_risk_run(self.scenario)
+        scenario = self.scenario
+        run = self.store.latest_risk_run(scenario)
         if run is None:
             return None, True
         age = datetime.now(timezone.utc) - run["computed_at"]
-        stale = self.scenario == "live" and age > timedelta(hours=self.settings.risk_stale_hours)
+        stale = scenario == "live" and age > timedelta(hours=self.settings.risk_stale_hours)
         return run, stale
 
     def edge_risk(self) -> pd.Series:
@@ -83,7 +107,8 @@ class RiskService:
     def _current(self) -> tuple[pd.Series, pd.Series]:
         run, stale = self.current_run()
         key = "static" if stale else run["_id"]
-        if key != self._cached_key:
+        cached = self._cache.get(key)
+        if cached is None:
             segs = self.store.segments
             if stale:
                 scores = segs["risk_score"]
@@ -95,8 +120,12 @@ class RiskService:
                 scores = scores.fillna(segs["risk_score"])
                 labels = segs["street_id"].map({s: v.get("risk_label") for s, v in by_street.items()})
                 labels = labels.where(labels.isin(LABELS), self._cutoff_labels(scores))
-            self._cached_key, self._cached = key, (scores, labels)
-        return self._cached
+            cached = (scores, labels)
+            with self._cache_lock:
+                self._cache[key] = cached
+                while len(self._cache) > 4:  # live + storm, plus older runs until ML's next ones replace them
+                    self._cache.pop(next(iter(self._cache)))
+        return cached
 
     def _cutoff_labels(self, scores: pd.Series) -> pd.Series:
         s = self.settings

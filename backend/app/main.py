@@ -2,13 +2,14 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import alerts, calendar, dashboard, demo, me, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
-from app.integrations.google_calendar import CalendarSessions, router as google_router
+from app.integrations.google_calendar import make_sessions, router as google_router
 from app.integrations.ics_calendar import router as ics_router
 from app.integrations.live_conditions import LiveConditions
 from app.integrations.tomtom import TomTomTraffic
@@ -34,7 +35,7 @@ async def lifespan(app: FastAPI):
     network = RoadNetwork(settings.data_dir / "graph.graphml")
     network.check_matches(store.segments.index)
     app.state.settings = settings
-    app.state.calendar_sessions = CalendarSessions()
+    app.state.calendar_sessions = make_sessions(settings, store)
     app.state.store = store
     app.state.network = network
     app.state.risk = RiskService(store, settings)
@@ -70,6 +71,14 @@ app.include_router(alerts.router)
 app.include_router(dashboard.router)
 app.include_router(me.router)
 app.include_router(demo.router)
+
+
+@app.middleware("http")
+async def save_calendar_sessions(request: Request, call_next):
+    """Atlas sessions: write back what the request changed, before the response goes out (no-op in memory)."""
+    response = await call_next(request)
+    await run_in_threadpool(request.app.state.calendar_sessions.save, request)
+    return response
 
 
 @app.get("/health")

@@ -18,7 +18,7 @@ No `.env` needed locally: by default it runs on the committed pipeline data
 
 ### Google Calendar
 
-Follow [Google Calendar setup](../docs/google-calendar-setup.md) to enable the API, register the OAuth callback, and set backend credentials. The frontend setup button connects a private browser session; explicit demo calendars remain available without credentials. This prototype stores connected sessions in memory for one day and requires one backend worker.
+Follow [Google Calendar setup](../docs/google-calendar-setup.md) to enable the API, register the OAuth callback, and set backend credentials. The frontend setup button connects a private browser session; explicit demo calendars remain available without credentials. Connected sessions last one day: in memory locally (one backend worker), in Atlas with `DATA_BACKEND=mongo` (any number of server copies).
 
 ### Traffic (TomTom)
 
@@ -34,6 +34,26 @@ The same data then comes from Atlas (db `flood`), plus the live `closures` and M
 Until ML writes runs, "live" serves the static score (`/weather` says `stale: true`) and "storm" uses the
 local fake storm. Tests always run offline; to also check Atlas:
 `DRYROUTE_MONGO_TESTS=1 .venv/Scripts/python -m pytest tests/test_mongo.py`
+
+### Deploy (Vercel)
+
+Two Vercel projects from this repo: the backend (root directory: the repo root; Vercel reads `index.py`,
+`pyproject.toml` and `vercel.json` there) and the frontend (root directory `frontend`, env
+`VITE_API_BASE_URL=/api`). `frontend/vercel.json` forwards `/api/*` to the backend, so the phone only talks to
+the frontend's address and the calendar cookie stays first-party (Safari blocks it across `*.vercel.app` sites).
+
+Vercel runs many short-lived copies of the backend, so nothing that must last may live in server memory:
+with `DATA_BACKEND=mongo`, calendar sessions (`calendar_sessions`, `oauth_pending`) and the demo switch
+(`app_state`) are in Atlas. Backend env: `DATA_BACKEND=mongo`, `STATIC_DATA=files` (fast cold start),
+`MONGO_URI`, `MONGO_DB`, `USE_FAKE_CALENDAR=true`, `FRONTEND_URL` and `CORS_ORIGINS` (the frontend's URL),
+`CALENDAR_COOKIE_SECURE=true`, optionally `TOMTOM_API_KEY` and the `GOOGLE_*` values (redirect URI
+`https://<frontend>/api/auth/google/callback`). Atlas Network Access must allow `0.0.0.0/0`.
+Keep `pyproject.toml`'s packages in sync with `requirements.txt`; the bundle is ~465 of Vercel's 500 MB.
+Try the entrypoint locally from the repo root: `backend/.venv/Scripts/python -m uvicorn index:app --port 8000`
+
+Demo homes (the dashboard's demo controls, `DEMO_HOMES` in `frontend/src/pages/CalendarPage.tsx`) must be clear
+on the ML "live" run and flood on its "storm" run; local mode's fake storm can't tell. Check them, and the Atlas
+demo user's home, on demo morning: `.venv/Scripts/python scripts/check_demo_homes.py`
 
 ## Layout
 

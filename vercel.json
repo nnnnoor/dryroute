@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "index.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{frontend/**,docs/**,backend/tests/**,backend/scripts/**,data-pipeline/ml/**,data-pipeline/pipeline/**,data-pipeline/tests/**,data-pipeline/data/processed/roads.parquet,data-pipeline/data/processed/flood_reports.parquet}"
+    }
+  }
+}

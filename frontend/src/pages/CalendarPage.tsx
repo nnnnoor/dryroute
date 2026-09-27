@@ -17,14 +17,14 @@ const alertTone: Record<CalendarAlert['severity'], string> = {
   warning: 'border-amber-200 bg-amber-50 text-amber-900',
   info: 'border-sky-200 bg-sky-50 text-sky-900',
 }
-// Demo homes off campus. Each one's storm route to campus crosses flood-prone roads (checked against the model).
+// Demo homes off campus: the test class's route is clear on "live" and floods on the ML "storm" run.
+// Checked against the real ML runs in Atlas (local mode's fake storm floods far more roads, so it can't tell):
+// rerun backend/scripts/check_demo_homes.py after changing these, and on demo morning ("live" follows the weather).
 const DEMO_HOMES = [
-  { label: 'Brickell', lat: 25.7617, lon: -80.1918, note: 'long detour' },
-  { label: 'Coral Gables', lat: 25.7500, lon: -80.2600, note: 'detour' },
-  { label: 'Westchester', lat: 25.7470, lon: -80.3330, note: 'detour' },
-  { label: 'Coral Terrace', lat: 25.7459, lon: -80.3045, note: 'detour' },
-  { label: 'Shenandoah', lat: 25.75322, lon: -80.24144, note: 'short detour' },
-  { label: 'Little Havana', lat: 25.7650, lon: -80.2200, note: 'no safer route: critical alert' },
+  { label: 'Shenandoah', lat: 25.757, lon: -80.216, note: 'detour around SW 16th Terrace' },
+  { label: 'Coconut Grove', lat: 25.730, lon: -80.242, note: 'detour around Oak Avenue' },
+  { label: 'Flagami', lat: 25.766, lon: -80.302, note: 'detour around SW 65th Avenue' },
+  { label: 'Little Havana', lat: 25.769, lon: -80.219, note: 'no safer route: critical alert' },
 ]
 const demoLabel = (label: string) => `${label} (demo home)`
 

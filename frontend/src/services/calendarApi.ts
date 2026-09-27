@@ -56,7 +56,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   } catch (error) {
     if (init.signal?.aborted) throw error
     if (timeout.aborted) throw new Error('The request timed out. Please try again.', { cause: error })
-    throw new Error('Could not reach the backend. Make sure it is running on port 8000.', { cause: error })
+    throw new Error(import.meta.env.DEV ? 'Could not reach the backend. Make sure it is running on port 8000.' : 'Could not reach DryRoute. Check your connection and try again.', { cause: error })
   }
   if (response.status === 204) return null as T
   let body: unknown

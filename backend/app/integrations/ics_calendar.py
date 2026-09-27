@@ -169,10 +169,9 @@ def _connect(request: Request, response: Response, data: bytes, url: str | None)
     upcoming = [e for e in week if "dateTime" in e["start"]]
 
     manager = state.calendar_sessions
-    old = manager.sessions.pop(request.cookies.get(COOKIE), None)
+    old = manager.pop(request.cookies.get(COOKIE), request)
     profile = old["profile"] if old and old["source"] != "disconnected" else None
-    key = manager.create("ics", profile=profile)
-    manager.sessions[key]["ics"] = {"data": data, "url": url, "fetched_at": time.time()}
+    key = manager.create("ics", profile=profile, ics={"data": data, "url": url, "fetched_at": time.time()})
     set_cookie(response, state.settings, COOKIE, key)
     return {
         "connected": True, "source": "ics", "google_configured": configured(state.settings),

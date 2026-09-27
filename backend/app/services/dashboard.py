@@ -90,16 +90,12 @@ class DashboardService:
         }
 
     def seed_demo_trips(self, user_id: str, now: datetime | None = None) -> dict:
-        """Replace the demo trips with a realistic week of them (idempotent). Uses the real planner,
-        switching the scenario per trip and restoring it afterwards."""
+        """Replace the demo trips with a realistic week of them (idempotent). Uses the real planner, with
+        each trip's scenario for this request only (the shared demo switch doesn't move)."""
         now = now or datetime.now(timezone.utc)
         self.store.delete_demo_trips(user_id)
-        before = self.risk.scenario
-        try:
-            for days_ago, (lat, lon), destination, scenario in DEMO_TRIPS:
-                self.risk.scenario = scenario
+        for days_ago, (lat, lon), destination, scenario in DEMO_TRIPS:
+            with self.risk.using(scenario):
                 when = (now - timedelta(days=days_ago)).replace(hour=12, minute=15, second=0, microsecond=0)
                 self.record_trip(user_id, lat, lon, destination, depart_at=when, now=when, demo=True)
-        finally:
-            self.risk.scenario = before
         return self.summary(user_id)

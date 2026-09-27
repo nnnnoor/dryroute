@@ -65,6 +65,14 @@ def test_seed_is_idempotent_keeps_real_trips_and_scenario(client):
     assert client.get("/weather").json()["scenario"] == "live"  # seeding restored the scenario
 
 
+def test_seeding_never_flips_the_shared_switch(client, monkeypatch):
+    """The storm trips are planned for this request only: other users never see storm meanwhile."""
+    flips = []
+    monkeypatch.setattr(client.app.state.store, "set_demo_scenario", flips.append)
+    seeded = client.post("/demo/seed-trips").json()
+    assert flips == [] and seeded["compromised_trips"] >= 2
+
+
 def test_trip_validation(client):
     assert client.post("/trips", json={"from_lat": 25.76, "from_lon": -80.19}).status_code == 400
     assert client.post("/trips", json={**PG6, "to_lat": 25.75, "to_lon": -80.3}).status_code == 400
