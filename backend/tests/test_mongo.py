@@ -55,3 +55,19 @@ def test_alerts_round_trip(stores):
     finally:
         mongo.db.alerts.delete_many({"user_id": user})
     assert mongo.get_alerts(user) == []
+
+
+def test_trips_round_trip(stores):
+    """Writes trips for a throwaway user in the backend's own `trips` collection, then deletes them."""
+    _, mongo = stores
+    user = "pytest-trips"
+    real = {"trip_id": "tr_real", "created_at": "2026-09-28T12:00:00Z", "demo": False}
+    demo = {"trip_id": "tr_demo", "created_at": "2026-09-27T12:00:00Z", "demo": True}
+    try:
+        mongo.save_trip(user, real)
+        mongo.save_trip(user, demo)
+        mongo.delete_demo_trips(user)
+        assert mongo.get_trips(user) == [real]
+    finally:
+        mongo.db.trips.delete_many({"user_id": user})
+    assert mongo.get_trips(user) == []

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import alerts, calendar, parking, risk, routes
+from app.api import alerts, calendar, dashboard, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
@@ -12,6 +12,7 @@ from app.integrations.live_conditions import LiveConditions
 from app.integrations.tomtom import TomTomTraffic
 from app.services.alerts import AlertService
 from app.services.calendar_sync import CalendarService
+from app.services.dashboard import DashboardService
 from app.services.flood_risk import RiskService
 from app.services.parking import ParkingService
 from app.services.road_graph import RoadNetwork
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
                                          settings, settings.fixtures_dir / "fiu_buildings.json")
     live = LiveConditions() if settings.live_conditions_enabled else None
     app.state.alerts = AlertService(store, app.state.calendar, app.state.parking, live, settings)
+    app.state.dashboard = DashboardService(store, app.state.trips, app.state.risk, settings)
     yield
 
 
@@ -60,6 +62,7 @@ app.include_router(routes.router)
 app.include_router(parking.router)
 app.include_router(calendar.router)
 app.include_router(alerts.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")

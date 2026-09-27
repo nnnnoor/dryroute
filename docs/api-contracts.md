@@ -33,7 +33,9 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
 | `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh` | In-app alerts (poll every ~60 s) | ✅ built |
-| `GET /dashboard` | Personal stats | planned |
+| `POST /trips`, `GET /trips` | Record a trip the student starts (feeds the dashboard) | ✅ built |
+| `GET /dashboard` | Personal stats | ✅ built |
+| `POST /demo/seed-trips` | Fill the dashboard with a demo week | ✅ built |
 | `POST /demo/scenario` | Switch to the demo storm scores | ✅ built |
 
 ---
@@ -246,11 +248,42 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 - `POST /alerts/{alert_id}/read` → `{"alert_id": "...", "read": true}` (404 for an unknown id).
 - `POST /alerts/refresh` rebuilds right away and returns the list (e.g. right after `POST /demo/scenario` in the demo).
 
+### `POST /trips`, `GET /trips`
+
+**Call `POST /trips` when the student starts a trip** (taps "Go"), not on every `/routes` lookup: the
+dashboard counts these. Body: the same destination/time fields as `/routes` (`from_lat`, `from_lon`, then
+`to_lat`+`to_lon` or `parking_id`, optional `depart_at` or `arrive_by`), plus optional `take`
+(`"safe"` | `"usual"`, default: what the recommendation says) and `event_id` (when it's for a class).
+Returns the saved trip:
+```json
+{"trip_id": "tr_1a2b3c4d5e", "created_at": "2026-09-28T12:18:00Z",
+ "depart_at": "2026-09-28T12:18:33Z", "arrive_at": "2026-09-28T13:00:00Z",
+ "from": {"lat": 25.7617, "lon": -80.1918},
+ "destination": {"parking_id": "way/112781054", "name": "Parking Garage 6"},
+ "event_id": null, "scenario": "storm", "take": "safe", "recommendation": "reroute_caution",
+ "compromised": true, "eta_minutes": 41.5, "extra_minutes": 1.7,
+ "high_risk_m_avoided": 6932, "high_risk_segments_avoided": 32, "time_saved_minutes": 12.1,
+ "parking_id": "way/112781054", "parking_hazardous": false, "demo": false}
+```
+Errors as for `/routes` (400 / 404), plus 422 for a bad `take`. `GET /trips` lists them, newest first.
+
 ### `GET /dashboard`
 
 ```json
-{"trips_planned": 12, "time_saved_minutes": 34, "risky_segments_avoided": 19, "alerts_received": 7}
+{"trips_planned": 7, "time_saved_minutes": 34, "risky_segments_avoided": 97, "alerts_received": 4,
+ "high_risk_km_avoided": 21.0, "compromised_trips": 4, "safer_routes_taken": 3,
+ "recent_trips": [{"...": "latest 5 trips, same shape as POST /trips"}]}
 ```
+- `time_saved_minutes` is an **estimate**: driving into a flooded road typically costs ~15 min (crawling
+  through water, turning back, detouring). A compromised trip on the safe route saves 15 min × the share of
+  flood-prone road it avoided, minus the safe route's extra minutes (never below 0). Say "about" in the UI.
+- `risky_segments_avoided` / `high_risk_km_avoided`: high-risk road on the usual route that the taken safe
+  route skipped. `alerts_received` counts every alert ever raised, resolved ones included.
+
+### `POST /demo/seed-trips`
+
+Fills the dashboard with a realistic past week (6 trips, 3 in a storm), so the demo doesn't open on zeros.
+Replaces earlier demo trips (safe to call again); real trips stay. Returns the `/dashboard` body.
 
 ### `POST /demo/scenario`
 

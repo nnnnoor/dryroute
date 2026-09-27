@@ -41,12 +41,13 @@ local fake storm. Tests always run offline; to also check Atlas:
 - `app/services/flood_risk.py`: live risk per road, read from the ML job's `risk_scores` (static score as fallback)
 - `app/services/route_planner.py`: usual vs flood-safer route on the graph (closures + risk-weighted costs)
 - `app/services/parking.py`: FIU lot flood hazard (scaled by rain) and safer alternatives
-- `app/api/`: endpoints (`risk.py`: `/weather`, `/segments/risk`, `/demo/scenario`; `routes.py`: `/routes`; `parking.py`: `/parking`; `calendar.py`: `/calendar/*`; `alerts.py`: `/alerts*`)
+- `app/api/`: endpoints (`risk.py`: `/weather`, `/segments/risk`, `/demo/scenario`; `routes.py`: `/routes`; `parking.py`: `/parking`; `calendar.py`: `/calendar/*`; `alerts.py`: `/alerts*`; `dashboard.py`: `/trips`, `/dashboard`, `/demo/seed-trips`)
 - `app/services/trips.py`: a trip = route + parking check (used by `/routes` and the calendar)
 - `app/services/calendar_sync.py`: calendar events -> FIU building -> lot -> leave-by time
 - `app/integrations/fake_calendar.py`: fake Google Calendar from `fixtures/calendar.json` (weekly schedule)
 - `app/integrations/tomtom.py`: traffic-aware travel time for a route the backend chose (optional)
 - `app/integrations/live_conditions.py`: NWS flood alerts + Biscayne Bay tide (adapted from `data-pipeline/ml/live.py`)
 - `app/services/alerts.py`: builds/updates/resolves alerts from the next trip, NWS and tide; saved via the store
+- `app/services/dashboard.py`: records trips the student starts, sums them up for `/dashboard`, seeds a demo week
 - `fixtures/`: fake data in the same shape as the real sources (closures, calendar, user profile);
   `fiu_buildings.json` (FIU building codes, from OSM via `scripts/build_fiu_buildings.py`)

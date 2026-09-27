@@ -46,6 +46,18 @@ class Store:
         """Insert or replace one alert, keyed by alert["alert_id"]."""
         raise NotImplementedError
 
+    def get_trips(self, user_id: str) -> list[dict]:
+        """Every trip the user committed to (POST /trips), in no particular order."""
+        raise NotImplementedError
+
+    def save_trip(self, user_id: str, trip: dict) -> None:
+        """Insert or replace one trip, keyed by trip["trip_id"]."""
+        raise NotImplementedError
+
+    def delete_demo_trips(self, user_id: str) -> None:
+        """Remove the trips made by POST /demo/seed-trips (demo: true)."""
+        raise NotImplementedError
+
 
 class LocalStore(Store):
     def __init__(self, settings: Settings):
@@ -58,6 +70,7 @@ class LocalStore(Store):
         with open(settings.fixtures_dir / "user.json", encoding="utf-8") as f:
             self._user = json.load(f)
         self._alerts: dict[tuple[str, str], dict] = {}  # in memory: gone on restart
+        self._trips: dict[tuple[str, str], dict] = {}   # same
 
     def get_user(self, user_id="demo"):
         return self._user
@@ -67,6 +80,16 @@ class LocalStore(Store):
 
     def save_alert(self, user_id, alert):
         self._alerts[(user_id, alert["alert_id"])] = dict(alert)
+
+    def get_trips(self, user_id):
+        return [dict(t) for (uid, _), t in self._trips.items() if uid == user_id]
+
+    def save_trip(self, user_id, trip):
+        self._trips[(user_id, trip["trip_id"])] = dict(trip)
+
+    def delete_demo_trips(self, user_id):
+        for key in [k for k, t in self._trips.items() if k[0] == user_id and t.get("demo")]:
+            del self._trips[key]
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)
