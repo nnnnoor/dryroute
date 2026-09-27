@@ -17,6 +17,10 @@ from app.timeutil import iso_utc
 
 ONLINE = re.compile(r"\b(online|zoom|teams|remote|virtual)\b", re.IGNORECASE)
 TOKEN = re.compile(r"[A-Z][A-Z0-9/]*")
+NAME_WORD = re.compile(r"[a-z0-9]+")
+# A shortened building name must keep a word that isn't one of these ("Green Library" yes, "Parking Garage" no)
+GENERIC = {"and", "of", "the", "building", "hall", "center", "centre", "parking", "garage", "library", "health",
+           "academic", "house", "complex", "annex", "lab", "labs", "laboratory", "tower", "towers", "field"}
 
 
 class CalendarService:
@@ -39,7 +43,27 @@ class CalendarService:
             for code in (token, token.rstrip("0123456789")):  # "PC213" -> "PC"
                 if code in self.buildings:
                     return {"code": code, **self.buildings[code]}
-        return None
+        return self._resolve_name(location)
+
+    def _resolve_name(self, location: str) -> dict | None:
+        """Building written by name: "Parking Garage 6 115", "Chem & Physics 197", "Green Library 100".
+        The words of the building's name, or of its last two or more words ("Green Library" for "Steven and
+        Dorothea Green Library"), must appear in order; a word may be shortened ("Chem" for "Chemistry"), numbers
+        must match exactly. The most specific match wins ("Academic Health Center 5" over "... Center")."""
+        words = NAME_WORD.findall(location.lower().replace("&", " and "))
+        best = None
+        for code, b in self.buildings.items():
+            name = NAME_WORD.findall(b["name"].lower().replace("&", " and "))
+            for start in range(len(name) - 1 if len(name) > 1 else 1):
+                part = name[start:]
+                if start and all(w in GENERIC or w.isdigit() for w in part):
+                    continue
+                if _in_order(part, words):
+                    score = (len(part), start == 0)
+                    if best is None or score > best[0]:
+                        best = (score, code)
+                    break
+        return {"code": best[1], **self.buildings[best[1]]} if best else None
 
     # ---------------------------------------------------------------- events
     def events(self, hours: int, now: datetime | None = None) -> list[dict]:
@@ -132,3 +156,13 @@ class CalendarService:
             if dist > self.settings.max_lot_walk_m:
                 return None, 0
         return parking_id, round(dist * self.settings.walk_detour / self.settings.walk_m_per_min)
+
+
+def _in_order(name: list[str], words: list[str]) -> bool:
+    """Every word of `name` appears in `words`, in order; a word may be shortened ("chem" for "chemistry")."""
+    i = 0
+    for word in words:
+        if i < len(name) and (word == name[i] or (len(word) >= 3 and not word.isdigit() and not name[i].isdigit()
+                                                  and name[i].startswith(word))):
+            i += 1
+    return i == len(name)
