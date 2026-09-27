@@ -1,6 +1,6 @@
 # Connect Google Calendar
 
-The setup page now starts Google OAuth on the backend. Access and refresh tokens stay in server memory; the browser receives an opaque HttpOnly session cookie. The app reads your primary calendar and never creates or edits Google events.
+The setup page now starts Google OAuth on the backend. Access and refresh tokens stay on the server (in memory locally, in Atlas when deployed); the browser receives an opaque HttpOnly session cookie. The app reads your primary calendar and never creates or edits Google events.
 
 ## Google Cloud configuration
 
@@ -37,8 +37,8 @@ The schedule refreshes every minute while open and has a manual refresh button. 
 
 ## Storage and deployment limits
 
-This local prototype uses one backend worker. Sessions, tokens, profiles, alerts, and trips for connected browsers expire after 24 hours or disappear on restart. Reconnect afterward. Before using multiple workers or durable production accounts, move these into an authenticated persistent store with encrypted tokens. Public GIS data remains shared; connected users' private data is isolated.
+Sessions, tokens, profiles, alerts, and trips for connected browsers expire after 24 hours. Locally (`DATA_BACKEND=local`) they live in server memory: one backend worker, and they disappear on restart. With `DATA_BACKEND=mongo` they live in Atlas (`calendar_sessions`, emptied by a TTL index), so they survive restarts and any number of server copies, as on Vercel. Tokens are stored as Google returns them (Atlas encrypts its disks, the app doesn't encrypt them itself). Public GIS data remains shared; connected users' private data is isolated.
 
-For deployment, update the Google redirect, frontend URL, and CORS origins to the deployed HTTPS URLs. Use `CALENDAR_COOKIE_SECURE=true`; if the frontend and API are on different sites, also use `CALENDAR_COOKIE_SAMESITE=none` (browser third-party-cookie restrictions can still block such setups). Prefer same-site hosting.
+For deployment (backend/README.md, Deploy), the frontend forwards `/api/*` to the backend, so both are one site to the browser. Register the redirect URI `https://<frontend>/api/auth/google/callback`, set `GOOGLE_REDIRECT_URI` to the same, `FRONTEND_URL` and `CORS_ORIGINS` to the frontend's HTTPS URL, `CALENDAR_COOKIE_SECURE=true`, and keep `CALENDAR_COOKIE_SAMESITE=lax`. Calling the API on a different site instead needs `SAMESITE=none`, and Safari blocks those cookies.
 
 References: [Google server-side OAuth](https://developers.google.com/identity/protocols/oauth2/web-server), [Calendar events.list](https://developers.google.com/workspace/calendar/api/v3/reference/events/list).

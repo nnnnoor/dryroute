@@ -2,8 +2,10 @@
 
 Collections (db settings.mongo_db): segments, parking, fiu_hotspots and closures from the data pipeline;
 risk_runs and risk_scores from the ML job (docs/api-contracts.md). The static layers are loaded into
-memory at startup (~5 s); closures and risk runs are queried per request. The backend only reads those;
-the only collections it writes are its own `users`, `alerts` and `trips`.
+memory at startup (~15 s from Atlas; with STATIC_DATA=files the same layers come from the committed files in
+~2 s, for serverless cold starts); closures and risk runs are queried per request. The backend only reads
+those; the only collections it writes are its own `users`, `alerts`, `trips`, `app_state` (the demo
+switch) and the calendar sessions (`calendar_sessions`, `oauth_pending`: integrations/google_calendar.py).
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
@@ -18,7 +20,7 @@ from pymongo import DESCENDING, MongoClient
 from shapely.geometry import shape
 
 from app.config import Settings
-from app.db.store import Store, fake_run, fake_scores, load_default_user
+from app.db.store import Store, fake_run, fake_scores, load_default_user, load_static_layers
 
 
 class MongoStore(Store):
@@ -29,10 +31,21 @@ class MongoStore(Store):
         self.client.admin.command("ping")  # fail at startup, not on the first request
         self.db = self.client[settings.mongo_db]
 
-        self.segments = _frame(self.db.segments.find({}), "edge_id").set_index("edge_id", drop=False)
-        self.parking = _frame(self.db.parking.find({}), None).set_index("osm_id", drop=False)
-        self.hotspots = _frame(self.db.fiu_hotspots.find({}), None).set_index("hotspot_id", drop=False)
+        if settings.static_data == "files":
+            load_static_layers(self, settings.data_dir)
+        else:
+            self.segments = _frame(self.db.segments.find({}), "edge_id").set_index("edge_id", drop=False)
+            self.parking = _frame(self.db.parking.find({}), None).set_index("osm_id", drop=False)
+            self.hotspots = _frame(self.db.fiu_hotspots.find({}), None).set_index("hotspot_id", drop=False)
         self._default_user = load_default_user(settings)
+
+    # app_state: the demo switch, one doc read per use so every server copy sees a change at once
+    def demo_scenario(self):
+        doc = self.db.app_state.find_one({"_id": "demo_scenario"}) or {}
+        return doc.get("scenario", "live")
+
+    def set_demo_scenario(self, scenario):
+        self.db.app_state.replace_one({"_id": "demo_scenario"}, {"scenario": scenario}, upsert=True)
 
     # users: the backend's own collection, one doc per user (_id = user_id)
     def get_user(self, user_id="demo"):

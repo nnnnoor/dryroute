@@ -41,18 +41,22 @@ def _clock(iso: str) -> str:
 
 class AlertService:
     def __init__(self, store: Store, calendar: CalendarService, parking: ParkingService,
-                 live: LiveConditions | None, settings: Settings):
+                 live: LiveConditions | None, settings: Settings, last_refresh: dict | None = None):
         self.store = store
         self.calendar = calendar
         self.parking = parking
         self.live = live
         self.settings = settings
-        self._last_refresh: dict[str, float] = {}
+        # user_id -> {"at": epoch seconds, "scenario": the demo scenario they were built for}. A calendar
+        # session passes its own dict, kept with the session, so every server copy knows when it was built.
+        self._last_refresh: dict[str, dict] = {} if last_refresh is None else last_refresh
 
     # ---------------------------------------------------------------- API
     def for_user(self, user_id: str = "demo", include_resolved: bool = False,
                  now: datetime | None = None) -> list[dict]:
-        if time.monotonic() - self._last_refresh.get(user_id, -1e9) >= self.settings.alerts_refresh_seconds:
+        last = self._last_refresh.get(user_id)
+        if (not last or last["scenario"] != self.store.demo_scenario()
+                or time.time() - last["at"] >= self.settings.alerts_refresh_seconds):
             self.refresh(user_id, now)
         alerts = [a for a in self.store.get_alerts(user_id) if include_resolved or a["active"]]
         alerts.sort(key=lambda a: (SEVERITY_RANK[a["severity"]], a["updated_at"]), reverse=True)
@@ -66,12 +70,13 @@ class AlertService:
         return False
 
     def invalidate(self) -> None:
-        """Rebuild on the next poll (e.g. after the demo scenario changes)."""
+        """Rebuild on the next poll (e.g. after the profile changes). A new demo scenario needs no call."""
         self._last_refresh.clear()
 
     # ---------------------------------------------------------------- building
     def refresh(self, user_id: str = "demo", now: datetime | None = None) -> None:
         now = now or datetime.now(timezone.utc)
+        scenario = self.store.demo_scenario()
         candidates, checked = [], set()
 
         event, trip = self.calendar.plan_next(now=now)
@@ -104,7 +109,7 @@ class AlertService:
             c["title"] = f"{c['severity'].capitalize()}: {c['title']}"
 
         self._save(user_id, candidates, checked, now)
-        self._last_refresh[user_id] = time.monotonic()
+        self._last_refresh[user_id] = {"at": time.time(), "scenario": scenario}
 
     def _trip_alerts(self, event: dict, trip: dict) -> list[dict]:
         name, event_id = event["event_name"], event["event_id"]

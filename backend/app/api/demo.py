@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.integrations.google_calendar import check_origin, session
+from app.integrations.google_calendar import check_origin, invalidate_alerts, session
 from app.timeutil import iso_utc
 
 router = APIRouter(prefix="/demo")
@@ -43,11 +43,6 @@ def _connection(request: Request) -> dict:
     return connection
 
 
-def _refresh_alerts(connection: dict) -> None:
-    if connection.get("alert_service"):
-        connection["alert_service"].invalidate()
-
-
 @router.post("/test-event")
 def add_test_event(request: Request, body: TestEventIn | None = None):
     body = body or TestEventIn()
@@ -63,7 +58,7 @@ def add_test_event(request: Request, body: TestEventIn | None = None):
         "id": TEST_ID, "summary": "DryRoute test class", "location": f"{code} 100",
         "start": {"dateTime": start.isoformat()}, "end": {"dateTime": (start + timedelta(minutes=75)).isoformat()},
     }]
-    _refresh_alerts(connection)
+    invalidate_alerts(connection)
     return {"event_id": TEST_ID, "event_name": "DryRoute test class", "start_time": iso_utc(start),
             "location": f"{code} 100", "building": building["name"]}
 
@@ -72,5 +67,5 @@ def add_test_event(request: Request, body: TestEventIn | None = None):
 def remove_test_event(request: Request):
     connection = _connection(request)
     connection["test_events"] = []
-    _refresh_alerts(connection)
+    invalidate_alerts(connection)
     return {"removed": True}

@@ -1,7 +1,7 @@
 """GET /me, PUT /me: the student's profile (docs/api-contracts.md)."""
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from app.integrations.google_calendar import request_store, session, check_origin
+from app.integrations.google_calendar import invalidate_alerts, request_store, session, check_origin
 
 router = APIRouter()
 USER = "demo"  # SessionStore scopes this key to the connected browser
@@ -57,8 +57,8 @@ def update_me(body: ProfileIn, request: Request):
     user = {**store.get_user(USER), **changes}
     store.save_user(USER, user)
     current = session(request)
-    if current and current.get("alert_service"):
-        current["alert_service"].invalidate()
-    elif not current:
+    if current:
+        invalidate_alerts(current)
+    else:
         s.alerts.invalidate()
     return _profile(request, user)

@@ -143,7 +143,6 @@ def prepare_panel(segments, reports, weather, negative_fraction=.02):
                     pieces.append(frame)
     panel = pd.concat(pieces, ignore_index=True).merge(streets, on="street_id", validate="many_to_one")
     panel = panel.merge(weather.reset_index(), on="date", validate="many_to_one")
-    panel["report_rate"] = report_history(panel, positives)
     if panel.duplicated(["street_id", "date"]).any():
         raise ValueError("Duplicate street-day")
     audit.update({"segments": len(segments), "streets": len(streets), "positive_street_days": len(positives),

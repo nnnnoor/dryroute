@@ -37,7 +37,7 @@ def connection(request: Request, response: Response):
 def demo(request: Request, response: Response):
     check_origin(request)
     state = request.app.state
-    state.calendar_sessions.sessions.pop(request.cookies.get(COOKIE), None)
+    state.calendar_sessions.pop(request.cookies.get(COOKIE), request)
     key = state.calendar_sessions.create("demo", profile=state.store.get_user())
     set_cookie(response, state.settings, COOKIE, key)
     return {"connected": True, "source": "demo", "google_configured": configured(state.settings)}
@@ -47,7 +47,7 @@ def demo(request: Request, response: Response):
 def disconnect(request: Request, response: Response):
     check_origin(request)
     state = request.app.state
-    state.calendar_sessions.sessions.pop(request.cookies.get(COOKIE), None)
+    state.calendar_sessions.pop(request.cookies.get(COOKIE), request)
     # Tombstone prevents silently substituting the demo after disconnect.
     set_cookie(response, state.settings, COOKIE, state.calendar_sessions.create("disconnected"))
     return {"connected": False, "source": "disconnected", "google_configured": configured(state.settings)}

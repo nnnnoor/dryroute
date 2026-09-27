@@ -10,3 +10,6 @@ __pycache__/
 
 # OS / editor
 .DS_Store
+
+# Vercel CLI (vercel link / vercel dev)
+.vercel/

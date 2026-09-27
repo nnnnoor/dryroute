@@ -9,6 +9,7 @@ data (closures, users, trips, alerts) is read per request.
 """
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
@@ -63,19 +64,30 @@ class Store:
         """Remove the trips made by POST /demo/seed-trips (demo: true)."""
         raise NotImplementedError
 
+    def demo_scenario(self) -> str:
+        """The demo switch (POST /demo/scenario): "live" or "storm". One for everyone, not per user."""
+        raise NotImplementedError
+
+    def set_demo_scenario(self, scenario: str) -> None:
+        raise NotImplementedError
+
 
 class LocalStore(Store):
     def __init__(self, settings: Settings):
-        d = settings.data_dir
-        self.segments = gpd.read_parquet(d / "segments.parquet").set_index("edge_id", drop=False)
-        self.parking = gpd.read_file(d / "fiu_parking.geojson").set_index("osm_id", drop=False)
-        self.hotspots = gpd.read_file(d / "fiu_hotspots.geojson").set_index("hotspot_id", drop=False)
+        load_static_layers(self, settings.data_dir)
         with open(settings.fixtures_dir / "closures.json", encoding="utf-8") as f:
             self._closures = [_parse_closure(c) for c in json.load(f)]
         self._default_user = load_default_user(settings)
         self._users: dict[str, dict] = {}               # in memory: gone on restart
         self._alerts: dict[tuple[str, str], dict] = {}  # in memory: gone on restart
         self._trips: dict[tuple[str, str], dict] = {}   # same
+        self._scenario = "live"                         # same
+
+    def demo_scenario(self):
+        return self._scenario
+
+    def set_demo_scenario(self, scenario):
+        self._scenario = scenario
 
     def get_user(self, user_id="demo"):
         return {**self._default_user, **self._users.get(user_id, {}), "user_id": user_id}
@@ -111,6 +123,13 @@ class LocalStore(Store):
 
     def risk_scores(self, run_id):
         return fake_scores(self.segments, run_id)
+
+
+def load_static_layers(store: Store, data_dir: Path) -> None:
+    """segments, parking and hotspots from the committed pipeline files."""
+    store.segments = gpd.read_parquet(data_dir / "segments.parquet").set_index("edge_id", drop=False)
+    store.parking = gpd.read_file(data_dir / "fiu_parking.geojson").set_index("osm_id", drop=False)
+    store.hotspots = gpd.read_file(data_dir / "fiu_hotspots.geojson").set_index("hotspot_id", drop=False)
 
 
 def load_default_user(settings: Settings) -> dict:
