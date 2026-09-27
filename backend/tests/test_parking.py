@@ -18,7 +18,7 @@ def test_dry_day_no_lot_is_hazardous(client):
     b = client.get("/routes", params={**FROM_BRICKELL, "parking_id": W10}).json()
     assert b["parking"]["hazardous"] is False
     assert b["parking"]["alternatives"] == []
-    assert b["recommendation"]["message"] == "No flooding expected on your usual route."
+    assert b["recommendation"]["message"] == "No high flood-risk roads on your usual route."
 
 
 def test_storm_hazardous_lot_gets_safer_alternatives(client):

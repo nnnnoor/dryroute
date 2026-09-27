@@ -120,7 +120,7 @@ class RoutePlanner:
     def _recommend(self, compromised, same_route, usual, safe, comparison) -> dict:
         """What the student should do: one action for the frontend's logic, one sentence to show."""
         if not compromised:
-            return {"action": "safe", "message": "No flooding expected on your usual route."}
+            return {"action": "safe", "message": "No high flood-risk roads on your usual route."}
         if same_route:
             return {"action": "no_alternative",
                     "message": f"No safer route: your trip has to cross {_distance(usual['high_risk_m'])} of "
@@ -131,7 +131,7 @@ class RoutePlanner:
             street = _worst_street(usual)
             where = f"on {street}" if street else "on your usual route"
             return {"action": "reroute",
-                    "message": f"Flooding likely {where}. Take the safer route ({extra_text})."}
+                    "message": f"High flood risk {where}. Take the safer route ({extra_text})."}
         return {"action": "reroute_caution",
                 "message": f"The safer route avoids {_distance(comparison['high_risk_m_avoided'])} of flood-prone "
                            f"road but still crosses {_distance(safe['high_risk_m'])}. Drive carefully ({extra_text})."}

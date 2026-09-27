@@ -6,8 +6,8 @@ memory at startup (~5 s); closures and risk runs are queried per request.
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
-fresh ML run it serves the static score (stale). The user profile comes from fixtures/user.json until
-there is a users collection.
+fresh ML run it serves the static score (stale). User profiles come from the users collection (_id =
+user_id); a user missing there falls back to fixtures/user.json.
 """
 import json
 from datetime import datetime, timezone
@@ -36,7 +36,8 @@ class MongoStore(Store):
             self._user = json.load(f)
 
     def get_user(self, user_id="demo"):
-        return self._user
+        user = self.db.users.find_one({"_id": user_id}, {"_id": 0})
+        return user or self._user
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)

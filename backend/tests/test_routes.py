@@ -9,7 +9,7 @@ def test_dry_day_is_not_compromised(client):
     b = client.get("/routes", params=BRICKELL_TO_GOLD).json()
     assert b["compromised"] is False
     assert b["usual"]["high_risk_m"] == 0
-    assert b["recommendation"] == {"action": "safe", "message": "No flooding expected on your usual route."}
+    assert b["recommendation"] == {"action": "safe", "message": "No high flood-risk roads on your usual route."}
 
 
 # Real storm trips, one per outcome (found by sampling random trips)
@@ -29,7 +29,7 @@ def test_storm_recommendations(client):
         assert b["compromised"] is True
         if action == "reroute":
             assert b["safe"]["high_risk_m"] < 200
-            assert rec["message"].startswith("Flooding likely on ")
+            assert rec["message"].startswith("High flood risk on ")
         elif action == "reroute_caution":
             assert b["safe"]["high_risk_m"] >= 200
             assert "Drive carefully" in rec["message"]
