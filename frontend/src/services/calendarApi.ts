@@ -3,7 +3,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http:
 export const GOOGLE_CALENDAR_URL = `${API_BASE_URL}/auth/google/start`
 export interface CalendarConnection {
   connected: boolean
-  source: 'google' | 'demo' | 'disconnected'
+  source: 'google' | 'demo' | 'ics' | 'disconnected'
   google_configured: boolean
 }
 export interface CalendarEvent {
@@ -26,6 +26,11 @@ export interface CalendarAlert {
   message: string
   read: boolean
   active: boolean
+}
+/** Result of importing an iCal link or .ics file (docs/api-contracts.md, /calendar/ics/*). */
+export interface CalendarImport extends CalendarConnection {
+  events_next_7_days: number
+  upcoming: { event_name: string | null; start_time: string; location: string | null; building_found: boolean }[]
 }
 export interface ProfileUpdate {
   name?: string
@@ -59,3 +64,6 @@ export const getCalendarEvents = (signal?: AbortSignal) => request<CalendarEvent
 export const getNextEvent = (signal?: AbortSignal) => request<NextEvent | null>('/calendar/next-event', { signal })
 export const getCalendarAlerts = (signal?: AbortSignal) => request<CalendarAlert[]>('/alerts', { signal })
 export const updateProfile = (profile: ProfileUpdate) => request<unknown>('/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile) })
+export const importCalendarLink = (url: string) => request<CalendarImport>('/calendar/ics/url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+// The file itself is the request body (not a form upload).
+export const uploadCalendarFile = (file: File) => request<CalendarImport>('/calendar/ics/upload', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: file })
