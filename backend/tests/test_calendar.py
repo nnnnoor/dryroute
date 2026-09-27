@@ -27,9 +27,12 @@ def test_events_endpoint(client):
     events = client.get("/calendar/events", params={"hours": 168}).json()
     assert len(events) >= 10  # a full week of the fake schedule
     e = events[0]
-    assert set(e) == {"event_id", "event_name", "start_time", "end_time", "location", "location_point"}
+    assert set(e) == {"event_id", "event_name", "start_time", "end_time", "location", "location_point", "route_query"}
     online = [e for e in events if "Online" in e["location"]]
-    assert online and all(e["location_point"] is None for e in online)
+    assert online and all(e["location_point"] is None and e["route_query"] is None for e in online)
+    # in person at a known building: the trip from the saved home, arriving before class (same as next-event)
+    q = next(e for e in events if e["location_point"])["route_query"]
+    assert set(q) >= {"from_lat", "from_lon", "arrive_by"} and ("parking_id" in q or "to_lat" in q)
 
 
 def test_next_event_leave_by(calendar):
@@ -96,3 +99,20 @@ def test_parking_search_time_by_lot_type_and_hour(client):
     assert parking.search_minutes(gold, monday_15) == 5
     assert parking.search_minutes(gold, saturday_830) == 5    # no weekend peak
     assert parking.search_minutes(lot32, monday_15) == 3      # surface lot
+
+
+def test_already_at_the_building_is_not_an_error(client, calendar, monkeypatch):
+    """Home (or current location) snaps to the destination: the class shows, with no trip, and alerts don't crash."""
+    def same_place(*args, **kwargs):
+        raise ValueError("Start and destination are at the same place on the map")
+    monkeypatch.setattr(calendar.trips, "plan", same_place)
+    n = calendar.next_event(now=MONDAY_7AM_MIAMI)
+    assert n["event_name"] == "COP 3530 Data Structures"
+    assert n["trip"] is None and n["recommended_departure"] is None
+    assert client.post("/alerts/refresh").status_code == 200
+
+
+def test_every_event_route_query_matches_next_event(client, calendar):
+    n = calendar.next_event(now=MONDAY_7AM_MIAMI)
+    same = [e for e in calendar.events(48, now=MONDAY_7AM_MIAMI) if e["event_id"] == n["event_id"]]
+    assert same and same[0]["route_query"] == n["route_query"]

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import alerts, calendar, dashboard, me, parking, risk, routes
+from app.api import alerts, calendar, dashboard, demo, me, parking, risk, routes
 from app.config import Settings, get_settings
 from app.db.store import make_store
 from app.integrations.fake_calendar import FakeCalendar
@@ -69,6 +69,7 @@ app.include_router(ics_router)
 app.include_router(alerts.router)
 app.include_router(dashboard.router)
 app.include_router(me.router)
+app.include_router(demo.router)
 
 
 @app.get("/health")

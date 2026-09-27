@@ -67,8 +67,19 @@ class CalendarService:
 
     # ---------------------------------------------------------------- events
     def events(self, hours: int, now: datetime | None = None) -> list[dict]:
+        """Events in the next `hours`. Each in-person event at a known building gets the `route_query` for its
+        trip from the saved home (pass it to GET /routes to draw it), else null."""
         now = now or datetime.now(timezone.utc)
-        return [self._event(e)[0] for e in self._timed(now, now + timedelta(hours=hours))]
+        user = self.store.get_user()
+        out = []
+        for e in self._timed(now, now + timedelta(hours=hours)):
+            event, building = self._event(e)
+            query = None
+            if building and user.get("home") and not ONLINE.search(e.get("location") or ""):
+                home = user["home"]
+                query = self._trip_plan(e, building, user, home["lat"], home["lon"])["query"]
+            out.append({**event, "route_query": query})
+        return out
 
     def next_event(self, from_lat: float | None = None, from_lon: float | None = None,
                    now: datetime | None = None) -> dict | None:
@@ -92,18 +103,14 @@ class CalendarService:
 
         if from_lat is None:
             from_lat, from_lon = user["home"]["lat"], user["home"]["lon"]
-        start = datetime.fromisoformat(in_person[0]["start"]["dateTime"])
-
-        parking_id, walk_min = self._pick_lot(building, user)
-        parked_by = start - timedelta(minutes=user["arrival_buffer_minutes"] + walk_min)
-        # Reach the lot early enough to find a spot (more on weekday mornings)
-        search_min = self.parking.search_minutes(parking_id, parked_by) if parking_id else 0
-        arrive_by = parked_by - timedelta(minutes=search_min)
-        if parking_id:
-            dest = {"parking_id": parking_id}
-        else:
-            dest = {"to_lat": building["lat"], "to_lon": building["lon"]}
-        trip = self.trips.plan(from_lat, from_lon, **dest, arrive_by=arrive_by)
+        plan = self._trip_plan(in_person[0], building, user, from_lat, from_lon)
+        parking_id, walk_min, search_min = plan["parking_id"], plan["walk_min"], plan["search_min"]
+        query = plan["query"]
+        try:
+            trip = self.trips.plan(from_lat, from_lon, **plan["dest"], arrive_by=plan["arrive_by"])
+        except ValueError:  # e.g. already at the lot/building: no drive to plan (and nothing to alert about)
+            return {**event, "recommended_departure": None, "leave_in_minutes": None,
+                    "trip": None, "route_query": None}, None
 
         take = "safe" if trip["recommendation"]["action"] in ("reroute", "reroute_caution") else "usual"
         route = trip[take]
@@ -125,8 +132,22 @@ class CalendarService:
                 "parking_search_minutes": search_min,
                 "walk_minutes": walk_min,
             },
-            "route_query": {"from_lat": from_lat, "from_lon": from_lon, **dest, "arrive_by": iso_utc(arrive_by)},
+            "route_query": query,
         }, trip
+
+    def _trip_plan(self, e: dict, building: dict, user: dict, from_lat: float, from_lon: float) -> dict:
+        """Where to drive and when to arrive for one event (no routing yet): the lot (or the building when no lot
+        is within walking range), arriving early enough for the buffer, the walk and finding a spot."""
+        start = datetime.fromisoformat(e["start"]["dateTime"])
+        parking_id, walk_min = self._pick_lot(building, user)
+        parked_by = start - timedelta(minutes=user["arrival_buffer_minutes"] + walk_min)
+        # Reach the lot early enough to find a spot (more on weekday mornings)
+        search_min = self.parking.search_minutes(parking_id, parked_by) if parking_id else 0
+        arrive_by = parked_by - timedelta(minutes=search_min)
+        dest = {"parking_id": parking_id} if parking_id else {"to_lat": building["lat"], "to_lon": building["lon"]}
+        return {"parking_id": parking_id, "walk_min": walk_min, "search_min": search_min, "dest": dest,
+                "arrive_by": arrive_by,
+                "query": {"from_lat": from_lat, "from_lon": from_lon, **dest, "arrive_by": iso_utc(arrive_by)}}
 
     # ---------------------------------------------------------------- helpers
     def _timed(self, time_min, time_max) -> list[dict]:

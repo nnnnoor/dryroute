@@ -36,4 +36,7 @@ def set_scenario(body: ScenarioIn, request: Request):
     risk = request.app.state.risk
     risk.scenario = body.scenario
     request.app.state.alerts.invalidate()  # alerts reflect the new scenario on the next poll
+    for connection in list(request.app.state.calendar_sessions.sessions.values()):
+        if connection.get("alert_service"):  # connected browsers keep their own alerts
+            connection["alert_service"].invalidate()
     return risk.weather()
