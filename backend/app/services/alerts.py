@@ -84,7 +84,9 @@ class AlertService:
                 candidates += self._trip_alerts(event, trip)
                 depart = datetime.fromisoformat(event["recommended_departure"])
 
-        if self.live:
+        if not self.live:
+            checked |= {"nws", "tide"}  # switched off: resolve any saved from when they were on
+        else:
             at = depart if depart and now <= depart <= now + LIVE_HORIZON else now
             destination = (event["location_point"]["lat"], event["location_point"]["lon"]) \
                 if event and event.get("location_point") else FIU_CENTER

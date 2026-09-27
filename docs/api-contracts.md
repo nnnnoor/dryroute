@@ -239,8 +239,11 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 | `parking_flood` | trip | the lot for that class is high hazard | `event_id`, `parking_id` |
 | `leave_earlier` | trip | traffic adds ≥ 10 min (needs TomTom) | `event_id` |
 | `closure` | trip | construction/closure on the route | `event_id` |
-| `weather_warning` | nws | a National Weather Service flood alert is in effect | — |
-| `tide` | tide | Biscayne Bay (Virginia Key) at/above the NWS flood level | — |
+| `weather_warning` | nws | a National Weather Service flood alert is in effect (**off by default**) | — |
+| `tide` | tide | Biscayne Bay (Virginia Key) at/above the NWS flood level (**off by default**) | — |
+
+Alerts are about the student's trip. The two area-wide types (`weather_warning`, `tide`) are off unless the
+backend sets `LIVE_CONDITIONS_ENABLED=true`.
 
 - **Sorted** most severe first, then most recently updated. `severity`: `info | warning | critical`.
 - **Stable ids:** the same situation keeps its `alert_id`, so `read` sticks across rebuilds (unless the alert

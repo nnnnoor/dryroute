@@ -101,6 +101,14 @@ def test_failed_source_does_not_clear_alerts(alerts):
     assert build(alerts) == {}
 
 
+def test_switching_area_alerts_off_resolves_them(alerts):
+    alerts.live = FakeLive(nws=[FLOOD_WARNING], tide=HIGH_TIDE)
+    assert set(build(alerts)) == {"weather_warning", "tide"}
+    alerts.live = None  # LIVE_CONDITIONS_ENABLED=false (the default): route alerts only
+    assert build(alerts) == {}
+    assert {a["active"] for a in build(alerts, include_resolved=True).values()} == {False}
+
+
 def test_leave_earlier_on_heavy_traffic(client, alerts, monkeypatch):
     class HeavyTraffic:
         def travel_times(self, route_id, coords, depart_at):
