@@ -33,15 +33,21 @@ def risk_label(score: float, settings: Settings) -> str:
 
 
 def rain_level(rain: dict | None) -> str | None:
-    """Coarse label from the run's forecast rain in the next 3 h (mm)."""
-    if not rain or rain.get("rain_mm_next_3h") is None:
+    """Coarse label from a run's rain. ML's runs give the day's total (`rain_mm`, plus `rain_lag1_mm`,
+    `rain_prior3_mm`); the local fake runs give the next 3 h (`rain_mm_next_3h`). None if neither."""
+    if not rain:
         return None
-    mm = rain["rain_mm_next_3h"]
-    if mm < 1:
+    if rain.get("rain_mm") is not None:
+        mm, cutoffs = rain["rain_mm"], (1, 10, 25)            # mm per day
+    elif rain.get("rain_mm_next_3h") is not None:
+        mm, cutoffs = rain["rain_mm_next_3h"], (1, 7.5, 20)   # mm per 3 h
+    else:
+        return None
+    if mm < cutoffs[0]:
         return "none"
-    if mm < 7.5:
+    if mm < cutoffs[1]:
         return "light"
-    if mm < 20:
+    if mm < cutoffs[2]:
         return "moderate"
     return "heavy"
 

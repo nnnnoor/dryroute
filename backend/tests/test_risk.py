@@ -81,3 +81,28 @@ def test_ml_labels_override_backend_cutoffs(client, monkeypatch):
 def test_segments_risk_bad_box(client):
     r = client.get("/segments/risk", params={**BRICKELL, "west": -80.1, "east": -80.2})
     assert r.status_code == 400
+
+
+def test_rain_level_reads_ml_daily_and_fake_3h_fields():
+    from app.services.flood_risk import rain_level
+    # ML's runs: the day's total, in mm
+    assert rain_level({"rain_mm": 0.2, "rain_lag1_mm": 0, "rain_prior3_mm": 0}) == "none"
+    assert rain_level({"rain_mm": 6, "rain_lag1_mm": 12, "rain_prior3_mm": 24}) == "light"
+    assert rain_level({"rain_mm": 18, "rain_lag1_mm": 0, "rain_prior3_mm": 0}) == "moderate"
+    assert rain_level({"rain_mm": 35, "rain_lag1_mm": 12, "rain_prior3_mm": 24}) == "heavy"
+    # local fake runs: the next 3 h
+    assert rain_level({"rain_mm_next_3h": 50}) == "heavy"
+    assert rain_level({"rain_mm_next_3h": 0}) == "none"
+    assert rain_level({"something_else": 3}) is None and rain_level(None) is None
+
+
+def test_ml_daily_rain_drives_parking(client, monkeypatch):
+    """With an ML run on a dry day (rain_mm 0), lots are scaled down like the fake dry day."""
+    from datetime import datetime, timezone
+    store = client.app.state.store
+    run = {"_id": "ml-dry", "scenario": "live", "computed_at": datetime.now(timezone.utc),
+           "model_version": "daily_report_v2", "rain": {"rain_mm": 0.0, "rain_lag1_mm": 0.0, "rain_prior3_mm": 0.0}}
+    monkeypatch.setattr(store, "latest_risk_run", lambda scenario: run)
+    monkeypatch.setattr(store, "risk_scores", lambda rid: {})
+    assert client.get("/weather").json()["rain_level"] == "none"
+    assert {l["hazard_label"] for l in client.get("/parking").json()} == {"low"}

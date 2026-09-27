@@ -45,14 +45,15 @@ here first, then in code. Live, interactive docs for whatever is already built: 
   "scenario": "live",
   "computed_at": "2026-09-26T13:00:00Z",
   "stale": false,
-  "model_version": "rules-v1",
-  "rain": {"rain_mm_next_3h": 18.4, "rain_mm_last_24h": 41.0, "max_hourly_mm": 9.2},
+  "model_version": "daily_report_v2",
+  "rain": {"rain_mm": 35.0, "rain_lag1_mm": 12.0, "rain_prior3_mm": 24.0},
   "rain_level": "heavy"
 }
 ```
 The rain inputs of the ML run whose scores are being served. `scenario` is `"live"` or `"storm"` (demo).
 `stale: true` means the latest run is too old (or missing) and roads fall back to the static baseline score.
-`rain_level`: `none | light | moderate | heavy`.
+`rain_level`: `none | light | moderate | heavy`, from the day's total `rain_mm` (< 1, < 10, < 25, ≥ 25 mm).
+Rain fields are ML's daily inputs (Miami calendar days, mm; `rain_prior3_mm` includes yesterday).
 
 ### `GET /segments/risk`
 
@@ -262,8 +263,8 @@ Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenari
 
 ```json
 {"_id": "2026-09-26T13:00Z-live", "scenario": "live", "computed_at": "2026-09-26T13:00:00Z",
- "model_version": "rules-v1",
- "rain": {"rain_mm_next_3h": 18.4, "rain_mm_last_24h": 41.0, "max_hourly_mm": 9.2},
+ "model_version": "daily_report_v2",
+ "rain": {"rain_mm": 35.0, "rain_lag1_mm": 12.0, "rain_prior3_mm": 24.0},
  "streets_scored": 23163}
 ```
 The backend serves the newest run per scenario. If there is none, or the live run is more than 3 h old,
