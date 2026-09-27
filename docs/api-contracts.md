@@ -39,6 +39,7 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /dashboard` | Personal stats | ✅ built |
 | `POST /demo/seed-trips` | Fill the dashboard with a demo week | ✅ built |
 | `POST /demo/scenario` | Switch to the demo storm scores | ✅ built |
+| `POST /demo/test-event`, `DELETE /demo/test-event` | Add a test class ~2 h from now (demo alerts) | ✅ built |
 
 ---
 
@@ -217,7 +218,10 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
 - Pass `route_query` straight to `GET /routes` to draw the trip.
 
 `/calendar/events?hours=48` (1–168) returns a list of events with the fields `event_id, event_name, start_time,
-end_time, location, location_point`.
+end_time, location, location_point, route_query`. `route_query` is the planned trip for that class (saved home → its
+lot, arriving in time; the same thing `next-event` gives): pass it to `GET /routes` to draw the route and get its
+leave-by. It's `null` for online classes, unknown buildings, or when no home is saved. Plan it again after
+`POST /demo/scenario` or a new home, since the suggested route depends on both.
 
 ### `POST /calendar/ics/url`, `POST /calendar/ics/upload`
 
@@ -345,7 +349,16 @@ Replaces earlier demo trips (safe to call again); real trips stay. Returns the `
 ### `POST /demo/scenario`
 
 Body `{"scenario": "live" | "storm"}`. Everything after this serves that scenario's scores (see below);
-`"live"` returns to the real forecast. Lets the demo show flooding on a dry day.
+`"live"` returns to the real forecast. Lets the demo show flooding on a dry day. It applies to everyone using
+this backend, and every browser's alerts are rebuilt on their next poll (or `POST /alerts/refresh`).
+
+### `POST /demo/test-event`, `DELETE /demo/test-event`
+
+Demo only: adds one in-person class, "DryRoute test class", to **this browser's** calendar (any source), starting
+~2 h from now at an FIU building, so it's inside the 12 h alert window. Optional body
+`{"minutes_from_now": 30–600 (default 120), "building": "PC"}`. Returns `{event_id, event_name, start_time,
+location, building}`; 400 if no calendar is connected, 404 for an unknown building code. With a home off campus
+and `POST /demo/scenario {"scenario": "storm"}`, the dashboard shows a route alert. `DELETE` removes it.
 
 ---
 

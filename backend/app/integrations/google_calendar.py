@@ -238,6 +238,8 @@ def calendar_service(request):
     elif connection["source"] == "ics":  # iCal link or file (integrations/ics_calendar.py)
         from app.integrations.ics_calendar import IcsCalendar
         service.source = IcsCalendar(state.settings, connection, state.calendar_sessions.lock)
+    from app.api.demo import WithTestEvents  # POST /demo/test-event (demo only)
+    service.source = WithTestEvents(service.source, connection)
     return service
 
 

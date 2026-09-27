@@ -12,10 +12,15 @@ const presets: Point[] = [
 ]
 const field = 'mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm'
 
-export default function RoutePlanner({ events, onStart, onStatus }: { events: CalendarEvent[]; onStart: (label: string) => void; onStatus: (status: { risky: boolean; stale: boolean } | null) => void }) {
-  const [origin, setOrigin] = useState<Point | null>(() => {
-    try { const p = JSON.parse(sessionStorage.getItem('dryroute-onboarding') || '{}').coordinates; return p ? { lat: p.latitude, lon: p.longitude, label: 'Saved location' } : null } catch { return null }
-  })
+function savedLocation(): Point | null {
+  try { const p = JSON.parse(sessionStorage.getItem('dryroute-onboarding') || '{}').coordinates; return p ? { lat: p.latitude, lon: p.longitude, label: 'Saved location' } : null } catch { return null }
+}
+
+// The start is the student's saved home (from /me, e.g. the demo home) until they pick another one.
+export default function RoutePlanner({ events, home, onStart, onStatus }: { events: CalendarEvent[]; home: Point | null; onStart: (label: string) => void; onStatus: (status: { risky: boolean; stale: boolean } | null) => void }) {
+  const [pickedOrigin, setOrigin] = useState<Point | null>(null)
+  const [fallbackOrigin] = useState(savedLocation)
+  const origin = pickedOrigin ?? home ?? fallbackOrigin
   const [destination, setDestination] = useState<Point | null>(null)
   const [stops, setStops] = useState<Point[]>([])
   const [mode, setMode] = useState<'origin' | 'destination' | 'stop'>('destination')
@@ -66,7 +71,7 @@ export default function RoutePlanner({ events, onStart, onStatus }: { events: Ca
     finally { if (!request.signal.aborted) setBusy(false) }
   }
   return <section className="mt-7 rounded-3xl border border-[#dce7ee] bg-white p-4">
-    <h2 className="text-xl font-bold">Plan your route</h2>
+    <h2 className="text-xl font-bold">Plan another route</h2>
     <p className="mt-2 mb-4 text-xs leading-5 text-slate-600">Choose a start, destination, and optional stops. DryRoute checks each leg against the available Miami road and flood data.</p>
     <RouteMap points={points} plans={plans} onPick={pick} />
     <p className="mt-2 text-xs text-slate-600">Blue: suggested route. Dashed gray: usual route.</p>
@@ -81,8 +86,8 @@ export default function RoutePlanner({ events, onStart, onStatus }: { events: Ca
       <p className="font-bold">{Math.round(plans.reduce((total, plan) => total + suggestedRoute(plan).eta_minutes, 0))} min drive · {(plans.reduce((total, plan) => total + suggestedRoute(plan).distance_m, 0) / 1000).toFixed(1)} km</p>
       <p className="text-xs text-slate-600">Route data is checked when you press Find suggested route. Stops stay in your chosen order. Time spent at stops is not included. {plans.some(plan => suggestedRoute(plan).eta_source === 'free_flow') && 'Some travel times use speed limits, not live traffic.'}</p>
       {plans.map((plan, index) => <p key={index} className="rounded-xl bg-sky-50 p-3 text-xs leading-5"><strong>Leg {index + 1}:</strong> {plan.recommendation.message}{plan.weather.stale && ' Live risk data is stale; this uses the static flood-risk estimate.'}</p>)}
-      <p className="text-xs leading-5 text-slate-600">Google Maps receives these stops and destination, then calculates its own directions. It may use different roads and does not receive DryRoute flood warnings.</p>
-      <a href={googleMapsLink(plannedPoints)} target="_blank" rel="noopener noreferrer" onClick={() => onStart(plannedPoints[plannedPoints.length - 1].label)} className="flex min-h-11 items-center justify-center rounded-full bg-route-gold px-3 text-center text-sm font-bold text-route-navy">Start trip in Google Maps</a>
+      <p className="text-xs leading-5 text-slate-600">Google Maps follows the suggested route through your stops. It doesn't show DryRoute's flood warnings, so check them here first.</p>
+      <a href={googleMapsLink(plannedPoints, plans)} target="_blank" rel="noopener noreferrer" onClick={() => onStart(plannedPoints[plannedPoints.length - 1].label)} className="flex min-h-11 items-center justify-center rounded-full bg-route-gold px-3 text-center text-sm font-bold text-route-navy">Start trip in Google Maps</a>
     </div>}
   </section>
 }
