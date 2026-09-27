@@ -104,3 +104,11 @@ def test_routes_fall_back_when_traffic_fails(client, monkeypatch):
     usual = client.get("/routes", params=BRICKELL_TO_GOLD).json()["usual"]
     assert usual["eta_source"] == "free_flow"
     assert 15 < usual["eta_minutes"] < 25
+
+
+def test_congestion_counts_as_delay(monkeypatch):
+    """TomTom's trafficDelayInSeconds is incidents only; plain congestion shows up as travel - noTraffic."""
+    congested = {"routes": [{"summary": {"travelTimeInSeconds": 1776, "noTrafficTravelTimeInSeconds": 1638,
+                                         "trafficDelayInSeconds": 0, "lengthInMeters": 25868}}]}
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse(200, congested))
+    assert TomTomTraffic("k").travel_times("r_1", PATH, None)["delay_s"] == 138.0
