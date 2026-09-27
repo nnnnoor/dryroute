@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     fixtures_dir: Path = BACKEND_DIR / "fixtures"
 
     use_fake_calendar: bool = True
+    ics_max_bytes: int = 2_000_000       # .ics link/file import (integrations/ics_calendar.py)
+    ics_timeout_s: float = 10
+    ics_refresh_minutes: float = 30      # a pasted link is re-downloaded this often, so edits show up
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"

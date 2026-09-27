@@ -31,7 +31,8 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /segments/risk` | Road risk in a map box, for coloring the map | ✅ built |
 | `GET /routes` | Usual vs flood-safer route, + parking check | ✅ built |
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
-| `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
+| `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (demo schedule, Google sign-in, or iCal import) |
+| `POST /calendar/ics/url`, `POST /calendar/ics/upload` | Connect the student's calendar from an iCal link or .ics file | ✅ built |
 | `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh` | In-app alerts (poll every ~60 s) | ✅ built |
 | `GET /me`, `PUT /me` | Profile: name, home, preferred lot, arrival buffer | ✅ built |
 | `POST /trips`, `GET /trips` | Record a trip the student starts (feeds the dashboard) | ✅ built |
@@ -217,6 +218,34 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
 
 `/calendar/events?hours=48` (1–168) returns a list of events with the fields `event_id, event_name, start_time,
 end_time, location, location_point`.
+
+### `POST /calendar/ics/url`, `POST /calendar/ics/upload`
+
+Connect the student's real calendar **without Google sign-in**: paste its iCal link, or upload an `.ics` file.
+Works with Google Calendar (Settings → the calendar → **Secret address in iCal format**), Outlook
+(**Publish calendar** → ICS link), Apple Calendar (public calendar link) and Canvas (**Calendar feed**).
+Send requests with `credentials: "include"`: the backend sets the same `httponly` session cookie as Google
+sign-in, and from then on `/calendar/*`, `/alerts` and `/me` use this calendar for that browser.
+
+- **Link:** `POST /calendar/ics/url` with `{"url": "https://..."}` (`webcal://` also works). The backend downloads
+  it now and again every ~30 min, so changes in the student's calendar show up.
+- **File:** `POST /calendar/ics/upload` with the file itself as the body:
+  `fetch(API + "/calendar/ics/upload", {method: "POST", body: file, credentials: "include"})`.
+  (Not a form upload.) An uploaded file doesn't update; upload again after changes.
+
+Returns (show "Imported ✓" and the next classes):
+```json
+{"connected": true, "source": "ics", "google_configured": false,
+ "events_next_7_days": 9,
+ "upcoming": [{"event_name": "COP 3530 Data Structures", "start_time": "2026-09-28T13:00:00Z",
+               "location": "PC 213", "building_found": true}]}
+```
+`building_found: false` means that class's location isn't a known FIU building (or it's online): it gets no
+leave-by time. Repeating classes are expanded (skipped days respected); all-day events are ignored.
+Errors (`{"detail": "..."}`, ready to show): 400 not a calendar / bad or private link / link didn't work,
+413 file over 2 MB, 502 couldn't download right now. After connecting, `GET /calendar/connection` returns
+`{"connected": true, "source": "ics", ...}`; `DELETE /calendar/connection` disconnects.
+A student with no saved home gets events but no trip until they set one with `PUT /me`.
 
 ### `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh`
 

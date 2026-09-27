@@ -19,6 +19,10 @@ pyarrow==25.0.1             # reads segments.parquet
 # MongoDB Atlas (DATA_BACKEND=mongo)
 pymongo==4.18.2
 
+# Calendar import from an iCal link or .ics file (repeating classes expanded into dates)
+icalendar==7.3.0
+recurring-ical-events==3.8.2
+
 # TomTom traffic (and FastAPI's TestClient)
 httpx==0.28.1
 

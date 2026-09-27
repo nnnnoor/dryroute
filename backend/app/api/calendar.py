@@ -29,7 +29,7 @@ def connection(request: Request, response: Response):
     response.headers["Cache-Control"] = "no-store"
     current = session(request)
     source = current["source"] if current else "disconnected"
-    connected = bool(current and (source == "demo" or (source == "google" and current["tokens"])))
+    connected = bool(current and (source in ("demo", "ics") or (source == "google" and current["tokens"])))
     return {"connected": connected, "source": source, "google_configured": configured(request.app.state.settings)}
 
 
