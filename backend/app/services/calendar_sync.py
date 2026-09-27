@@ -48,15 +48,21 @@ class CalendarService:
     def next_event(self, from_lat: float | None = None, from_lon: float | None = None,
                    now: datetime | None = None) -> dict | None:
         """The next in-person event and the plan to get there. None when nothing is coming up."""
+        return self.plan_next(from_lat, from_lon, now)[0]
+
+    def plan_next(self, from_lat: float | None = None, from_lon: float | None = None,
+                  now: datetime | None = None) -> tuple[dict | None, dict | None]:
+        """(next_event response, full /routes-style trip). The trip is None when there's no event or
+        its location couldn't be resolved. Alerts use the full trip (risky streets, closures)."""
         now = now or datetime.now(timezone.utc)
         upcoming = self._timed(now, now + timedelta(days=self.settings.calendar_lookahead_days))
         in_person = [e for e in upcoming if e.get("location") and not ONLINE.search(e["location"])]
         if not in_person:
-            return None
+            return None, None
         event, building = self._event(in_person[0])
         if building is None:
             return {**event, "recommended_departure": None, "leave_in_minutes": None,
-                    "trip": None, "route_query": None}
+                    "trip": None, "route_query": None}, None
 
         user = self.store.get_user()
         if from_lat is None:
@@ -91,7 +97,7 @@ class CalendarService:
                 "walk_minutes": walk_min,
             },
             "route_query": {"from_lat": from_lat, "from_lon": from_lon, **dest, "arrive_by": iso_utc(arrive_by)},
-        }
+        }, trip
 
     # ---------------------------------------------------------------- helpers
     def _timed(self, time_min, time_max) -> list[dict]:
@@ -110,13 +116,14 @@ class CalendarService:
         }, building
 
     def _pick_lot(self, building: dict, user: dict) -> tuple[str | None, int]:
-        """The user's preferred lot, else the nearest usable one. (None, 0) when no lot is within walking range."""
+        """The user's preferred lot (always honored, however far), else the nearest usable one.
+        (None, 0) when no lot is preferred and no usable lot is within walking range."""
         target = (building["lon"], building["lat"])
         parking_id = user.get("preferred_parking_id")
         if parking_id:
             dist = distance_m(self.parking.center(parking_id), target)
         else:
             parking_id, dist = self.parking.nearest_suggestable(building["lat"], building["lon"])
-        if dist > self.settings.max_lot_walk_m:
-            return None, 0
+            if dist > self.settings.max_lot_walk_m:
+                return None, 0
         return parking_id, round(dist * self.settings.walk_detour / self.settings.walk_m_per_min)

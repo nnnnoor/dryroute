@@ -4,7 +4,8 @@
 fastapi==0.141.1
 uvicorn[standard]==0.54.0
 pydantic==2.13.5
-pydantic-settings==2.15.0   # reads .env (pulls in python-dotenv)
+pydantic-settings==2.15.0   # reads .env
+python-dotenv==1.2.3        # also imported directly (tests/test_tomtom_live.py)
 
 # Road graph, geodata, routing
 osmnx==2.1.1

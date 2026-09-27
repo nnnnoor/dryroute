@@ -55,10 +55,15 @@ class TomTomTraffic:
                            params=params, json=body, timeout=self.timeout_s)
             r.raise_for_status()
             summary = r.json()["routes"][0]["summary"]
+            traffic = float(summary["travelTimeInSeconds"])
+            no_traffic = float(summary.get("noTrafficTravelTimeInSeconds", traffic))
+            # trafficDelayInSeconds only counts incidents (crashes, closures), not ordinary congestion, so
+            # the delay is whichever is bigger: incidents, or time with traffic minus time without
+            delay = max(float(summary.get("trafficDelayInSeconds", 0)), traffic - no_traffic, 0.0)
             return {
-                "traffic_s": float(summary["travelTimeInSeconds"]),
-                "no_traffic_s": float(summary.get("noTrafficTravelTimeInSeconds", summary["travelTimeInSeconds"])),
-                "delay_s": float(summary.get("trafficDelayInSeconds", 0)),
+                "traffic_s": traffic,
+                "no_traffic_s": no_traffic,
+                "delay_s": delay,
                 "length_m": float(summary.get("lengthInMeters", 0)),
                 "live": depart_at is None,
             }

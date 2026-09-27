@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     # Lots rated and shown on the map, but never suggested to a student as somewhere to park
     parking_not_suggested: list[str] = ["Unnamed", "Loading Area", "Staff", "Compound"]
 
+    # Alerts. Rebuilt when the app polls GET /alerts, at most every alerts_refresh_seconds.
+    alerts_refresh_seconds: float = 60
+    alert_lookahead_hours: float = 12        # trip alerts only for an event starting within this
+    alert_traffic_delay_minutes: float = 10  # "leave earlier" when traffic adds at least this
+    live_conditions_enabled: bool = True     # NWS flood alerts + Biscayne Bay tide (free, no key)
+
+    # Dashboard. "Time saved" estimate: driving into a flooded road typically costs this many minutes
+    # (crawling through water, turning back, detouring); a trip saves that share of it it avoided,
+    # minus the safer route's extra minutes.
+    flood_detour_minutes: float = 15
+
     # Local frontend: Vite dev (5173) and `vite preview` (4173), as localhost or 127.0.0.1; 3000 for other setups
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173",
                                "http://127.0.0.1:4173", "http://localhost:3000"]

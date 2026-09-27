@@ -69,3 +69,13 @@ def test_next_event_endpoint(client, calendar, monkeypatch):
     assert client.get("/calendar/next-event", params={"from_lat": 25.76}).status_code == 400
     monkeypatch.setattr(calendar.source, "list_events", lambda time_min, time_max: [])
     assert client.get("/calendar/next-event").status_code == 204
+
+
+def test_preferred_lot_is_honored_even_if_far(client, calendar, monkeypatch):
+    """A student who always parks at W10 (~1 km from PC) still gets W10, with the longer walk counted."""
+    store = client.app.state.store
+    user = {**store.get_user(), "preferred_parking_id": "way/435345239"}
+    monkeypatch.setattr(store, "get_user", lambda user_id="demo": user)
+    trip = calendar.next_event(now=MONDAY_7AM_MIAMI)["trip"]
+    assert trip["parking_name"] == "W10 Parking Lot"
+    assert trip["walk_minutes"] >= 15

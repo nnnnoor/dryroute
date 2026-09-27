@@ -6,6 +6,27 @@ from fastapi import APIRouter, HTTPException, Query, Request
 router = APIRouter()
 
 
+def check_trip_params(request: Request, to_lat, to_lon, parking_id, depart_at, arrive_by) -> dict:
+    """Validate a destination + time (shared by /routes and POST /trips). Returns the destination dict."""
+    if parking_id is not None:
+        if to_lat is not None or to_lon is not None:
+            raise HTTPException(400, "Give either to_lat/to_lon or parking_id, not both")
+        if parking_id not in request.app.state.store.parking.index:
+            raise HTTPException(404, f"Unknown parking_id {parking_id!r}")
+        destination = {"parking_id": parking_id}
+    elif to_lat is None or to_lon is None:
+        raise HTTPException(400, "Give a destination: to_lat and to_lon, or parking_id")
+    else:
+        destination = {"to_lat": to_lat, "to_lon": to_lon}
+
+    if depart_at and arrive_by:
+        raise HTTPException(400, "Give depart_at or arrive_by, not both")
+    for name, t in (("depart_at", depart_at), ("arrive_by", arrive_by)):
+        if t is not None and t.tzinfo is None:
+            raise HTTPException(400, f"{name} needs a timezone, e.g. 2026-09-26T13:00:00Z")
+    return destination
+
+
 @router.get("/routes")
 def routes(
     request: Request,
@@ -17,20 +38,7 @@ def routes(
     depart_at: datetime | None = None,
     arrive_by: datetime | None = None,
 ):
-    if parking_id is not None:
-        if to_lat is not None or to_lon is not None:
-            raise HTTPException(400, "Give either to_lat/to_lon or parking_id, not both")
-        if parking_id not in request.app.state.store.parking.index:
-            raise HTTPException(404, f"Unknown parking_id {parking_id!r}")
-    elif to_lat is None or to_lon is None:
-        raise HTTPException(400, "Give a destination: to_lat and to_lon, or parking_id")
-
-    if depart_at and arrive_by:
-        raise HTTPException(400, "Give depart_at or arrive_by, not both")
-    for name, t in (("depart_at", depart_at), ("arrive_by", arrive_by)):
-        if t is not None and t.tzinfo is None:
-            raise HTTPException(400, f"{name} needs a timezone, e.g. 2026-09-26T13:00:00Z")
-
+    check_trip_params(request, to_lat, to_lon, parking_id, depart_at, arrive_by)
     try:
         return request.app.state.trips.plan(from_lat, from_lon, to_lat, to_lon, parking_id, depart_at, arrive_by)
     except ValueError as e:

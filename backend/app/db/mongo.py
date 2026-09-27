@@ -2,7 +2,8 @@
 
 Collections (db settings.mongo_db): segments, parking, fiu_hotspots and closures from the data pipeline;
 risk_runs and risk_scores from the ML job (docs/api-contracts.md). The static layers are loaded into
-memory at startup (~5 s); closures and risk runs are queried per request.
+memory at startup (~5 s); closures and risk runs are queried per request. The backend only reads those;
+the only collections it writes are its own `alerts` and `trips`.
 
 Until ML writes a "storm" run, the storm scenario falls back to the local fake storm (model_version
 "fake-storm-local") so the demo toggle keeps working. "live" never falls back to fake data: with no
@@ -38,6 +39,26 @@ class MongoStore(Store):
     def get_user(self, user_id="demo"):
         user = self.db.users.find_one({"_id": user_id}, {"_id": 0})
         return user or self._user
+
+    # alerts: the backend's own collection (never written by the pipeline or ML)
+    def get_alerts(self, user_id):
+        return [{k: v for k, v in d.items() if k not in ("_id", "user_id")}
+                for d in self.db.alerts.find({"user_id": user_id})]
+
+    def save_alert(self, user_id, alert):
+        self.db.alerts.replace_one({"_id": f"{user_id}|{alert['alert_id']}"},
+                                   {**alert, "user_id": user_id}, upsert=True)
+
+    # trips: also the backend's own collection
+    def get_trips(self, user_id):
+        return [{k: v for k, v in d.items() if k not in ("_id", "user_id")}
+                for d in self.db.trips.find({"user_id": user_id})]
+
+    def save_trip(self, user_id, trip):
+        self.db.trips.replace_one({"_id": f"{user_id}|{trip['trip_id']}"}, {**trip, "user_id": user_id}, upsert=True)
+
+    def delete_demo_trips(self, user_id):
+        self.db.trips.delete_many({"user_id": user_id, "demo": True})
 
     def active_closures(self, now=None):
         now = now or datetime.now(timezone.utc)
