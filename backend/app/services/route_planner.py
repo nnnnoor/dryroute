@@ -29,7 +29,7 @@ def _distance(meters: float) -> str:
     return f"{meters / 1000:.1f} km" if meters >= 1000 else f"{round(meters)} m"
 
 
-def _worst_street(route: dict) -> str | None:
+def worst_street(route: dict) -> str | None:
     """Named street with the most high-risk meters on the route."""
     by_name = {}
     for s in route["risk_segments"]:
@@ -128,7 +128,7 @@ class RoutePlanner:
         extra = comparison["extra_minutes"]
         extra_text = f"+{extra:g} min" if extra > 0 else "no extra time"
         if safe["high_risk_m"] < self.settings.route_compromised_min_m:
-            street = _worst_street(usual)
+            street = worst_street(usual)
             where = f"on {street}" if street else "on your usual route"
             return {"action": "reroute",
                     "message": f"High flood risk {where}. Take the safer route ({extra_text})."}

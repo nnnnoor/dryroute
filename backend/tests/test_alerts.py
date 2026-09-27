@@ -1,4 +1,5 @@
 """Alerts, with the calendar clock fixed and NWS/tide faked (no network)."""
+import re
 from datetime import datetime, timezone
 
 import pytest
@@ -48,9 +49,10 @@ def test_dry_day_has_no_alerts(alerts):
 def test_storm_route_alert(client, alerts):
     client.post("/demo/scenario", json={"scenario": "storm"})
     a = build(alerts)["route_flood"]
-    assert a["title"] == "High flood risk on your route to COP 3530 Data Structures"
+    assert a["title"] == "Warning: Flooding expected on your route to COP 3530 Data Structures"
     assert a["severity"] == "warning" and a["event_id"] and a["segment_id"]
-    assert "Leave by" in a["message"] and a["message"].endswith("AM.")
+    assert a["message"].startswith("Estimated flood levels are high on your usual route")
+    assert "Take the safer route" in a["message"] and a["message"].endswith("AM.")
     assert a["read"] is False and a["active"] is True and a["source"] == "trip"
 
 
@@ -61,9 +63,9 @@ def test_parking_alert_for_flood_prone_lot(client, alerts, monkeypatch):
     client.post("/demo/scenario", json={"scenario": "storm"})
     built = build(alerts)
     a = built["parking_flood"]
-    assert a["parking_id"] == W10 and a["title"] == "W10 Parking Lot may flood"
-    assert "Park at" in a["message"]
-    # the parking sentence moved to its own alert, not repeated in the route alert
+    assert a["parking_id"] == W10 and a["title"] == "Warning: W10 Parking Lot may flood"
+    assert a["message"].startswith("Estimated flood levels are high at W10 Parking Lot. Park at ")
+    # the parking advice is its own alert, not repeated in the route alert
     assert "Park at" not in built["route_flood"]["message"]
 
 
@@ -84,9 +86,10 @@ def test_weather_warning_and_tide(alerts):
     alerts.live = FakeLive(nws=[FLOOD_WARNING], tide=HIGH_TIDE)
     built = build(alerts)
     w = built["weather_warning"]
-    assert w["title"] == "Flood Warning" and w["severity"] == "critical" and w["source"] == "nws"
+    assert w["title"] == "Critical: Flood Warning" and "severity: severe" in w["message"] and w["severity"] == "critical" and w["source"] == "nws"
     t = built["tide"]
-    assert t["severity"] == "critical" and "14.4 ft" in t["message"]
+    assert t["severity"] == "critical" and t["title"] == "Critical: High tide in Biscayne Bay"
+    assert t["message"].startswith("Estimated water levels in Biscayne Bay are at the moderate flood level.")
 
 
 def test_failed_source_does_not_clear_alerts(alerts):
@@ -98,13 +101,21 @@ def test_failed_source_does_not_clear_alerts(alerts):
     assert build(alerts) == {}
 
 
+def test_switching_area_alerts_off_resolves_them(alerts):
+    alerts.live = FakeLive(nws=[FLOOD_WARNING], tide=HIGH_TIDE)
+    assert set(build(alerts)) == {"weather_warning", "tide"}
+    alerts.live = None  # LIVE_CONDITIONS_ENABLED=false (the default): route alerts only
+    assert build(alerts) == {}
+    assert {a["active"] for a in build(alerts, include_resolved=True).values()} == {False}
+
+
 def test_leave_earlier_on_heavy_traffic(client, alerts, monkeypatch):
     class HeavyTraffic:
         def travel_times(self, route_id, coords, depart_at):
             return {"traffic_s": 35 * 60, "no_traffic_s": 20 * 60, "delay_s": 15 * 60, "length_m": 0, "live": False}
     monkeypatch.setattr(client.app.state.planner, "traffic", HeavyTraffic())
     a = build(alerts)["leave_earlier"]
-    assert a["severity"] == "info" and "Traffic adds about 15 min" in a["message"]
+    assert a["severity"] == "info" and a["message"].startswith("Traffic is heavier than usual. Leave by ")
 
 
 def test_endpoints(client, alerts):
@@ -148,3 +159,18 @@ def test_parsers():
     observed = {"data": [{"t": "2026-09-27 00:24", "v": "13.6"}]}  # running 0.6 ft above prediction
     t = parse_tide(observed, preds, {"nws_minor": 13.66, "nws_moderate": 14.06}, at, now)
     assert t["expected_peak_ft"] == pytest.approx(14.1) and t["above_minor"] and t["above_moderate"]
+
+
+def test_alert_text_names_the_level_but_no_measurements(client, alerts, monkeypatch):
+    """Titles start with the severity; text never has km/m/ft/min (names like "COP 3530" are fine)."""
+    store = client.app.state.store
+    user = {**store.get_user(), "preferred_parking_id": W10}
+    monkeypatch.setattr(store, "get_user", lambda user_id="demo": user)
+    client.post("/demo/scenario", json={"scenario": "storm"})
+    alerts.live = FakeLive(nws=[FLOOD_WARNING], tide=HIGH_TIDE)
+    built = build(alerts)
+    assert {"route_flood", "parking_flood", "weather_warning", "tide"} <= set(built)
+    for a in built.values():
+        text = a["title"] + " " + a["message"]
+        assert not re.search(r"\d\s*(km|m|ft|feet|min|minutes|%)(\W|$)", text), text
+        assert a["title"].startswith(f"{a['severity'].capitalize()}: "), text

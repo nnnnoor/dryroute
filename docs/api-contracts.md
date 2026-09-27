@@ -226,8 +226,8 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 [{"alert_id": "al_3725145b3f",
   "type": "route_flood",
   "severity": "warning",
-  "title": "High flood risk on your route to COP 3530 Data Structures",
-  "message": "The safer route avoids 6.9 km of flood-prone road but still crosses 1.2 km. Drive carefully (+1.4 min). Leave by 8:25 AM.",
+  "title": "Warning: Flooding expected on your route to COP 3530 Data Structures",
+  "message": "Estimated flood levels are high on your usual route around Southwest 8th Street. Take the safer route and drive carefully: it avoids most of the flooding, not all of it. Leave by 8:25 AM.",
   "source": "trip", "event_id": "fake0_20260928", "segment_id": "123_456_0", "parking_id": null,
   "read": false, "active": true,
   "created_at": "2026-09-28T11:00:00Z", "updated_at": "2026-09-28T11:00:00Z",
@@ -239,8 +239,11 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 | `parking_flood` | trip | the lot for that class is high hazard | `event_id`, `parking_id` |
 | `leave_earlier` | trip | traffic adds ≥ 10 min (needs TomTom) | `event_id` |
 | `closure` | trip | construction/closure on the route | `event_id` |
-| `weather_warning` | nws | a National Weather Service flood alert is in effect | — |
-| `tide` | tide | Biscayne Bay (Virginia Key) at/above the NWS flood level | — |
+| `weather_warning` | nws | a National Weather Service flood alert is in effect (**off by default**) | — |
+| `tide` | tide | Biscayne Bay (Virginia Key) at/above the NWS flood level (**off by default**) | — |
+
+Alerts are about the student's trip. The two area-wide types (`weather_warning`, `tide`) are off unless the
+backend sets `LIVE_CONDITIONS_ENABLED=true`.
 
 - **Sorted** most severe first, then most recently updated. `severity`: `info | warning | critical`.
 - **Stable ids:** the same situation keeps its `alert_id`, so `read` sticks across rebuilds (unless the alert
@@ -248,6 +251,10 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 - **Resolved:** when the situation is over (storm passed, lot fine again) the alert drops off the list
   (`GET /alerts?include_resolved=true` still shows it with `active: false`, `resolved_at`).
   If a source couldn't be checked, its alerts stay as they were: "couldn't check" is never "all clear".
+- **Plain language:** `title` starts with the severity (`Critical:`, `Warning:`, `Info:`) and `message` names
+  the level ("high", "moderate flood level", NWS "severity: severe") but never a measurement (km, ft, minutes):
+  what to do and when, not how much. Show them as they are. The numbers stay on the `/routes` screen
+  (`recommendation.message`, `comparison`).
 - `message` times are Miami local time ("Leave by 8:25 AM"); all timestamp fields are UTC as usual.
 - `POST /alerts/{alert_id}/read` → `{"alert_id": "...", "read": true}` (404 for an unknown id).
 - `POST /alerts/refresh` rebuilds right away and returns the list (e.g. right after `POST /demo/scenario` in the demo).

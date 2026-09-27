@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     alerts_refresh_seconds: float = 60
     alert_lookahead_hours: float = 12        # trip alerts only for an event starting within this
     alert_traffic_delay_minutes: float = 10  # "leave earlier" when traffic adds at least this
-    live_conditions_enabled: bool = True     # NWS flood alerts + Biscayne Bay tide (free, no key)
+    live_conditions_enabled: bool = False    # area-wide NWS flood alerts + Biscayne Bay tide; off = route alerts only
 
     # Dashboard. "Time saved" estimate: driving into a flooded road typically costs this many minutes
     # (crawling through water, turning back, detouring); a trip saves that share of it it avoided,
