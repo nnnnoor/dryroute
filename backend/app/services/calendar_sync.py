@@ -1,7 +1,8 @@
 """Classes from the calendar -> where they are -> when to leave (docs/api-contracts.md, /calendar/*).
 
-Leave-by time: arrive at the lot by (class start - arrival buffer - walk from the lot), then subtract the
-drive time of the route the recommendation says to take (safe route when rerouting, else usual).
+Leave-by time: arrive at the lot by (class start - arrival buffer - walk from the lot - time to find a
+spot), then subtract the drive time of the route the recommendation says to take (safe route when
+rerouting, else usual).
 """
 import json
 import re
@@ -70,7 +71,10 @@ class CalendarService:
         start = datetime.fromisoformat(in_person[0]["start"]["dateTime"])
 
         parking_id, walk_min = self._pick_lot(building, user)
-        arrive_by = start - timedelta(minutes=user["arrival_buffer_minutes"] + walk_min)
+        parked_by = start - timedelta(minutes=user["arrival_buffer_minutes"] + walk_min)
+        # Reach the lot early enough to find a spot (more on weekday mornings)
+        search_min = self.parking.search_minutes(parking_id, parked_by) if parking_id else 0
+        arrive_by = parked_by - timedelta(minutes=search_min)
         if parking_id:
             dest = {"parking_id": parking_id}
         else:
@@ -94,6 +98,7 @@ class CalendarService:
                 "parking_id": parking_id,
                 "parking_name": parking["planned"]["name"] if parking else None,
                 "parking_hazardous": parking["hazardous"] if parking else False,
+                "parking_search_minutes": search_min,
                 "walk_minutes": walk_min,
             },
             "route_query": {"from_lat": from_lat, "from_lon": from_lon, **dest, "arrive_by": iso_utc(arrive_by)},

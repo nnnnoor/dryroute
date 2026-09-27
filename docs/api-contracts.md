@@ -33,6 +33,7 @@ here first, then in code. Live, interactive docs for whatever is already built: 
 | `GET /parking` | FIU lots/garages with flood hazard | ✅ built |
 | `GET /calendar/events`, `GET /calendar/next-event` | Classes + when to leave | ✅ built (fake calendar; Google OAuth pending) |
 | `GET /alerts`, `POST /alerts/{alert_id}/read`, `POST /alerts/refresh` | In-app alerts (poll every ~60 s) | ✅ built |
+| `GET /me`, `PUT /me` | Profile: name, home, preferred lot, arrival buffer | ✅ built |
 | `POST /trips`, `GET /trips` | Record a trip the student starts (feeds the dashboard) | ✅ built |
 | `GET /dashboard` | Personal stats | ✅ built |
 | `POST /demo/seed-trips` | Fill the dashboard with a demo week | ✅ built |
@@ -195,6 +196,7 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
     "parking_id": "way/112762942",
     "parking_name": "Gold Parking Garage",
     "parking_hazardous": false,
+    "parking_search_minutes": 9,
     "walk_minutes": 3
   },
   "route_query": {"from_lat": 25.7617, "from_lon": -80.1918, "parking_id": "way/112762942", "arrive_by": "2026-09-28T12:47:00Z"}
@@ -204,9 +206,11 @@ Params: `from_lat, from_lon` (the student's current location; optional, both or 
 - `location` is the location text as typed in the calendar. It's matched to an FIU building code ("PC 213",
   "PC213", "Graham Center (GC) 243"). `location_point` is `null` when no building matched (then
   `recommended_departure`, `leave_in_minutes`, `trip` and `route_query` are `null` too).
-- `recommended_departure` = class start − 10 min buffer − walk from the lot − drive time of the route to take
+- `recommended_departure` = class start − 10 min buffer − walk from the lot − time to find a spot − drive time of the route to take
   (`take`: `safe` when the recommendation is to reroute, else `usual`), rounded down to the minute.
   `leave_in_minutes` is negative when that time has passed.
+- `parking_search_minutes`: estimated time from reaching the lot to being parked: garage 5, surface lot 3,
+  street-side 5, plus 4 on weekday mornings (7:30–11 am). Drive times include traffic (TomTom) when available.
 - Parking: the student's preferred lot, else the nearest usable lot to the building. If no lot is within ~800 m
   (e.g. the Engineering Center), the trip goes to the building and the parking fields are `null`/`false`.
 - Pass `route_query` straight to `GET /routes` to draw the trip.
@@ -247,6 +251,23 @@ Poll `GET /alerts` about every 60 s and show unread ones as a banner/toast. Each
 - `message` times are Miami local time ("Leave by 8:25 AM"); all timestamp fields are UTC as usual.
 - `POST /alerts/{alert_id}/read` → `{"alert_id": "...", "read": true}` (404 for an unknown id).
 - `POST /alerts/refresh` rebuilds right away and returns the list (e.g. right after `POST /demo/scenario` in the demo).
+
+### `GET /me`, `PUT /me`
+
+The student's profile. The calendar's leave-by and trip alerts use it: `home` is where trips start when no
+`from_lat`/`from_lon` is given, `preferred_parking_id` is always the lot used for classes (however far; otherwise the
+nearest usable lot), and `arrival_buffer_minutes` is how early to be at class.
+```json
+{"user_id": "demo", "name": "Alex",
+ "home": {"label": "Brickell", "lat": 25.7617, "lon": -80.1918},
+ "preferred_parking_id": "way/112781054", "preferred_parking_name": "Parking Garage 6",
+ "arrival_buffer_minutes": 10}
+```
+`PUT /me` takes any subset of `name`, `home` (`label` optional, `lat` + `lon` required),
+`preferred_parking_id` and `arrival_buffer_minutes` (0–120); only the fields sent change. `null` clears `name`
+and `preferred_parking_id` (back to the nearest lot). Returns the updated profile. Errors: 404 for an unknown
+`parking_id`, 400 for `null` `home` or `arrival_buffer_minutes`, 422 for bad values (`name` over 60 characters).
+A new user starts with the defaults above (no name, home in Brickell, no preferred lot, 10 min).
 
 ### `POST /trips`, `GET /trips`
 

@@ -36,8 +36,9 @@ def test_next_event_leave_by(calendar):
     assert trip["parking_name"] == "Gold Parking Garage"
     depart = datetime.fromisoformat(n["recommended_departure"])
     assert depart.second == 0
-    # leave early enough for the drive + walk + 10 min buffer
-    budget = timedelta(minutes=trip["eta_minutes"] + trip["walk_minutes"] + 10)
+    # leave early enough for the drive + finding a spot + walk + 10 min buffer
+    assert trip["parking_search_minutes"] == 5 + 4  # a garage, on a weekday morning
+    budget = timedelta(minutes=trip["eta_minutes"] + trip["parking_search_minutes"] + trip["walk_minutes"] + 10)
     assert depart + budget <= datetime(2026, 9, 28, 13, 0, tzinfo=timezone.utc)
     assert n["leave_in_minutes"] == round((depart - MONDAY_7AM_MIAMI).total_seconds() / 60)
     assert n["route_query"]["parking_id"] == trip["parking_id"]
@@ -79,3 +80,15 @@ def test_preferred_lot_is_honored_even_if_far(client, calendar, monkeypatch):
     trip = calendar.next_event(now=MONDAY_7AM_MIAMI)["trip"]
     assert trip["parking_name"] == "W10 Parking Lot"
     assert trip["walk_minutes"] >= 15
+
+
+def test_parking_search_time_by_lot_type_and_hour(client):
+    parking = client.app.state.parking
+    gold, lot32 = "way/112762942", client.app.state.store.parking.index[client.app.state.store.parking["name"] == "Lot 32"][0]
+    monday_830 = datetime(2026, 9, 28, 12, 30, tzinfo=timezone.utc)   # 8:30 am Miami
+    monday_15 = datetime(2026, 9, 28, 19, 0, tzinfo=timezone.utc)     # 3:00 pm Miami
+    saturday_830 = datetime(2026, 9, 26, 12, 30, tzinfo=timezone.utc)
+    assert parking.search_minutes(gold, monday_830) == 9      # garage 5 + peak 4
+    assert parking.search_minutes(gold, monday_15) == 5
+    assert parking.search_minutes(gold, saturday_830) == 5    # no weekend peak
+    assert parking.search_minutes(lot32, monday_15) == 3      # surface lot
