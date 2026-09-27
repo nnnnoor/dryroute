@@ -1,8 +1,9 @@
 import RoutePlanner from '../components/RoutePlanner'
-import { useEffect, useState } from 'react'
-import { ArrowLeft, CalendarDays, RefreshCw } from 'lucide-react'
-import { disconnectCalendar, getCalendarConnection, getCalendarEvents, getNextEvent, getCalendarAlerts } from '../services/calendarApi'
-import type { CalendarConnection, CalendarEvent, NextEvent, CalendarAlert } from '../services/calendarApi'
+import EventTrip from '../components/EventTrip'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, CalendarDays, CloudRain, FlaskConical, RefreshCw, Route } from 'lucide-react'
+import { disconnectCalendar, getCalendarConnection, getCalendarEvents, getNextEvent, getCalendarAlerts, getScenario, setScenario, addTestEvent, removeTestEvent, refreshAlerts, getProfile, updateProfile } from '../services/calendarApi'
+import type { CalendarConnection, CalendarEvent, NextEvent, CalendarAlert, Scenario, Profile } from '../services/calendarApi'
 
 import happyIcon from '../assets/Happy Icon.png'
 import riskyIcon from '../assets/Risky Icon.png'
@@ -11,6 +12,21 @@ import onRouteIcon from '../assets/On Route Icon.png'
 
 const date = (value: string) => new Date(value).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'Please try again.'
+const alertTone: Record<CalendarAlert['severity'], string> = {
+  critical: 'border-red-200 bg-red-50 text-red-900',
+  warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  info: 'border-sky-200 bg-sky-50 text-sky-900',
+}
+// Demo homes off campus. Each one's storm route to campus crosses flood-prone roads (checked against the model).
+const DEMO_HOMES = [
+  { label: 'Brickell', lat: 25.7617, lon: -80.1918, note: 'long detour' },
+  { label: 'Coral Gables', lat: 25.7500, lon: -80.2600, note: 'detour' },
+  { label: 'Westchester', lat: 25.7470, lon: -80.3330, note: 'detour' },
+  { label: 'Coral Terrace', lat: 25.7459, lon: -80.3045, note: 'detour' },
+  { label: 'Shenandoah', lat: 25.75322, lon: -80.24144, note: 'short detour' },
+  { label: 'Little Havana', lat: 25.7650, lon: -80.2200, note: 'no safer route: critical alert' },
+]
+const demoLabel = (label: string) => `${label} (demo home)`
 
 export default function CalendarPage() {
   const [connection, setConnection] = useState<CalendarConnection | null>(null)
@@ -25,6 +41,50 @@ export default function CalendarPage() {
   const [activeRoute, setActiveRoute] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [name] = useState(() => { try { return sessionStorage.getItem('dryroute-user-name') || '' } catch { return '' } })
+  const [scenario, setScenarioState] = useState<Scenario>('live')
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoNote, setDemoNote] = useState('')
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const tripPanel = useRef<HTMLDivElement>(null)
+  const hasTestEvent = events.some(event => event.event_id === 'dryroute_test_event')
+  // The trip panel shows the class the student picked, else the next in-person class
+  const tripEvent = events.find(event => event.event_id === selectedEventId && event.route_query)
+    ?? events.find(event => event.event_id === next?.event_id && event.route_query)
+  const home = profile?.home ? { lat: profile.home.lat, lon: profile.home.lon, label: profile.home.label || 'Home' } : null
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getScenario(controller.signal).then(weather => setScenarioState(weather.scenario)).catch(() => { /* Demo controls are optional. */ })
+    getProfile(controller.signal).then(setProfile).catch(() => { /* The saved home only prefills the route planner. */ })
+    return () => controller.abort()
+  }, [refresh])
+
+  function showRoute(eventId: string) {
+    setSelectedEventId(eventId)
+    tripPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Demo controls: change the conditions, rebuild the alerts now, then reload the dashboard.
+  async function runDemo(action: () => Promise<unknown>, note: string) {
+    setDemoBusy(true)
+    try { await action(); await refreshAlerts(); setDemoNote(note); setRefresh(value => value + 1) }
+    catch (cause) { setDemoNote(errorText(cause)) }
+    finally { setDemoBusy(false) }
+  }
+  const toggleStorm = () => {
+    const nextScenario: Scenario = scenario === 'storm' ? 'live' : 'storm'
+    void runDemo(async () => { await setScenario(nextScenario); setScenarioState(nextScenario) },
+      nextScenario === 'storm' ? 'Storm on: flood risk now uses heavy rain.' : 'Storm off: back to the live forecast.')
+  }
+  // An off-campus home, so the storm demo shows flooding even when presenting from FIU.
+  const chooseDemoHome = (index: number) => {
+    const area = DEMO_HOMES[index]
+    if (area) void runDemo(() => updateProfile({ home: { label: demoLabel(area.label), lat: area.lat, lon: area.lon } }),
+      `Home set to ${area.label} (demo). Trips and alerts now start there.`)
+  }
+  const toggleTestEvent = () => void runDemo(hasTestEvent ? removeTestEvent : addTestEvent,
+    hasTestEvent ? 'Test class removed.' : 'Test class added, starting in about 2 hours.')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -89,13 +149,28 @@ export default function CalendarPage() {
         {activeRoute && <div className="mt-3 rounded-2xl bg-white p-4"><p className="text-sm font-medium">Active trip: {activeRoute}</p><button type="button" onClick={() => setActiveRoute(null)} className="mt-3 min-h-11 w-full rounded-full bg-route-navy px-4 text-sm font-semibold text-white">End trip</button></div>}
         {!activeRoute && next?.trip && connection?.connected && <button type="button" disabled={checkingStatus || Boolean(error || planError)} onClick={() => setActiveRoute(next.event_name || 'Your next event')} className="mt-3 min-h-11 w-full rounded-full bg-route-navy px-4 text-sm font-semibold text-white disabled:opacity-50">Start trip to {next.event_name || 'your next event'}</button>}
         {connection?.connected && <div className="mt-4 flex items-center justify-between text-xs"><span className="rounded-full bg-white px-3 py-2">{connection.source === 'demo' ? 'Demo schedule' : connection.source === 'ics' ? 'Calendar imported' : 'Google Calendar connected'}</span><button onClick={disconnect} className="underline">Disconnect</button></div>}
+        {connection?.connected && <section aria-labelledby="demo-heading" className="mt-4 rounded-[22px] border border-dashed border-[#cfdee8] bg-white p-4">
+          <p id="demo-heading" className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">Demo controls</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={toggleStorm} disabled={demoBusy} aria-pressed={scenario === 'storm'} className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-50 ${scenario === 'storm' ? 'bg-route-navy text-white' : 'border border-[#cfdee8] bg-[#f4f9fc] hover:bg-sky-50'}`}><CloudRain size={16} aria-hidden="true" />{scenario === 'storm' ? 'Stop storm' : 'Simulate storm'}</button>
+            <button type="button" onClick={toggleTestEvent} disabled={demoBusy} aria-pressed={hasTestEvent} className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy disabled:opacity-50 ${hasTestEvent ? 'bg-route-navy text-white' : 'border border-[#cfdee8] bg-[#f4f9fc] hover:bg-sky-50'}`}><FlaskConical size={16} aria-hidden="true" />{hasTestEvent ? 'Remove test class' : 'Add test class'}</button>
+          </div>
+          <label className="mt-3 block text-xs font-semibold">Demo home area
+            <select value={DEMO_HOMES.findIndex(area => profile?.home?.label === demoLabel(area.label))} onChange={event => chooseDemoHome(Number(event.target.value))} disabled={demoBusy} className="mt-1 min-h-11 w-full rounded-full border border-[#cfdee8] bg-[#f4f9fc] px-4 text-xs text-route-navy disabled:opacity-50">
+              <option value={-1} disabled>{profile?.home ? `Current: ${profile.home.label || 'your location'}` : 'Choose an area'}</option>
+              {DEMO_HOMES.map((area, index) => <option key={area.label} value={index}>{area.label} · {area.note}</option>)}
+            </select>
+          </label>
+          <p role="status" className="mt-2 text-[10px] leading-4 text-slate-500">{demoNote || 'For an alert: pick a demo home, add the test class (about 2 hours from now), then simulate the storm.'}</p>
+        </section>}
         {error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error} <a href="/setup" className="underline">Connection settings</a></p>}
-        {!loading && connection && !connection.connected && <section className="mt-6 rounded-3xl bg-white p-5"><CalendarDays /><h2 className="mt-3 font-bold">Connect your schedule</h2><p className="mt-2 text-sm text-slate-600">Connect Google Calendar to see your classes and work events, or choose the demo.</p><a href="/setup" className="mt-4 inline-block rounded-full bg-route-navy px-5 py-3 text-sm text-white">Set up Calendar</a></section>}
-        {next && <section className="mt-6 rounded-3xl bg-route-navy p-5 text-white"><p className="text-xs text-sky-200">NEXT IN-PERSON EVENT</p><h2 className="mt-2 text-lg font-bold">{next.event_name || 'Untitled event'}</h2><p className="mt-2 text-sm">{date(next.start_time)}</p><p className="mt-2 text-sm">{next.recommended_departure ? `Leave by ${date(next.recommended_departure)}` : 'Enable location in setup and use a recognized FIU building in the event location to calculate a commute.'}</p></section>}
-        <RoutePlanner events={events} onStart={setActiveRoute} onStatus={setMapStatus} />
         {planError && <p role="alert" className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">Commute warnings could not be checked: {planError}</p>}
-        {alerts.filter(alert => alert.active).map(alert => <article key={alert.alert_id} className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4"><h2 className="font-bold">{alert.title}</h2><p className="mt-1 text-sm">{alert.message}</p></article>)}
-        {connection?.connected && <section className="mt-7"><h2 className="text-lg font-bold">Upcoming events</h2><p className="mt-1 text-xs text-slate-500">Primary calendar · timed events · refreshes every minute</p>{loading && <p role="status" className="mt-4 text-sm">Loading your schedule...</p>}{!loading && !error && events.length === 0 && <p className="mt-4 rounded-2xl bg-white p-4 text-sm">{connection.source === 'ics' ? 'No timed events in the next seven days. Add a class to your calendar, then refresh (uploaded files: upload again).' : 'No timed events in the next seven days. Add a class or work event to your primary Google Calendar, then refresh.'}</p>}<div className="mt-4 space-y-3">{events.map(event => <article key={event.event_id} className="rounded-[22px] border border-[#dce7ee] bg-white p-4"><p className="text-xs font-medium text-[#92701d]">{date(event.start_time)}</p><h3 className="mt-2 font-bold">{event.event_name || 'Untitled event'}</h3><p className="mt-1 text-sm text-slate-600">{event.location || 'No location added'}</p></article>)}</div></section>}
+        {alerts.filter(alert => alert.active).map(alert => <article key={alert.alert_id} className={`mt-3 rounded-2xl border p-4 ${alertTone[alert.severity]}`}><h2 className="font-bold">{alert.title}</h2><p className="mt-1 text-sm">{alert.message}</p></article>)}
+        {!loading && connection && !connection.connected && <section className="mt-6 rounded-3xl bg-white p-5"><CalendarDays /><h2 className="mt-3 font-bold">Connect your schedule</h2><p className="mt-2 text-sm text-slate-600">Connect Google Calendar to see your classes and work events, or choose the demo.</p><a href="/setup" className="mt-4 inline-block rounded-full bg-route-navy px-5 py-3 text-sm text-white">Set up Calendar</a></section>}
+        {next && <section className="mt-6 rounded-3xl bg-route-navy p-5 text-white"><p className="text-xs text-sky-200">NEXT IN-PERSON EVENT</p><h2 className="mt-2 text-lg font-bold">{next.event_name || 'Untitled event'}</h2><p className="mt-2 text-sm">{date(next.start_time)}</p><p className="mt-2 text-sm">{next.recommended_departure ? `Leave by ${date(next.recommended_departure)}` : 'Set your location in setup and use a recognized FIU building in the event location to plan a commute.'}</p></section>}
+        <div ref={tripPanel} className="scroll-mt-4">{tripEvent && <EventTrip event={tripEvent} conditions={`${scenario}|${profile?.home?.lat},${profile?.home?.lon}|${refresh}`} onStart={setActiveRoute} />}</div>
+        <RoutePlanner events={events} home={home} onStart={setActiveRoute} onStatus={setMapStatus} />
+        {connection?.connected && <section className="mt-7"><h2 className="text-lg font-bold">Upcoming events</h2><p className="mt-1 text-xs text-slate-500">Timed events · refreshes every minute</p>{loading && <p role="status" className="mt-4 text-sm">Loading your schedule...</p>}{!loading && !error && events.length === 0 && <p className="mt-4 rounded-2xl bg-white p-4 text-sm">{connection.source === 'ics' ? 'No timed events in the next seven days. Add a class to your calendar, then refresh (uploaded files: upload again).' : 'No timed events in the next seven days. Add a class or work event to your primary Google Calendar, then refresh.'}</p>}<div className="mt-4 space-y-3">{events.map(event => <article key={event.event_id} className="rounded-[22px] border border-[#dce7ee] bg-white p-4"><p className="text-xs font-medium text-[#92701d]">{date(event.start_time)}</p><h3 className="mt-2 font-bold">{event.event_name || 'Untitled event'}</h3><p className="mt-1 text-sm text-slate-600">{event.location || 'No location added'}</p>{event.route_query && <button type="button" onClick={() => showRoute(event.event_id)} aria-pressed={tripEvent?.event_id === event.event_id} className="mt-3 flex min-h-11 items-center gap-2 rounded-full border border-[#cfdee8] bg-[#f4f9fc] px-4 text-xs font-semibold hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route-navy"><Route size={16} aria-hidden="true" />{tripEvent?.event_id === event.event_id ? 'Showing route' : 'Show route'}</button>}</article>)}</div></section>}
       </main>
     </div>
   </div>

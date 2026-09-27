@@ -1,4 +1,6 @@
 ﻿/** Google authorization and private calendar API calls use an HttpOnly backend cookie. */
+import type { RouteQuery } from './routing'
+
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:8000').replace(/\/+$/, '')
 export const GOOGLE_CALENDAR_URL = `${API_BASE_URL}/auth/google/start`
 export interface CalendarConnection {
@@ -13,6 +15,8 @@ export interface CalendarEvent {
   end_time: string
   location: string | null
   location_point: { lat: number; lon: number } | null
+  /** GET /routes parameters for this class's trip (saved home -> its lot, arriving in time); null if none. */
+  route_query?: RouteQuery | null
 }
 export interface NextEvent extends CalendarEvent {
   recommended_departure: string | null
@@ -31,6 +35,12 @@ export interface CalendarAlert {
 export interface CalendarImport extends CalendarConnection {
   events_next_7_days: number
   upcoming: { event_name: string | null; start_time: string; location: string | null; building_found: boolean }[]
+}
+export interface Profile {
+  name: string | null
+  home: { label: string | null; lat: number; lon: number } | null
+  preferred_parking_id: string | null
+  arrival_buffer_minutes: number
 }
 export interface ProfileUpdate {
   name?: string
@@ -63,7 +73,15 @@ export const disconnectCalendar = () => request<CalendarConnection>('/calendar/c
 export const getCalendarEvents = (signal?: AbortSignal) => request<CalendarEvent[]>('/calendar/events?hours=168', { signal })
 export const getNextEvent = (signal?: AbortSignal) => request<NextEvent | null>('/calendar/next-event', { signal })
 export const getCalendarAlerts = (signal?: AbortSignal) => request<CalendarAlert[]>('/alerts', { signal })
+export const getProfile = (signal?: AbortSignal) => request<Profile>('/me', { signal })
 export const updateProfile = (profile: ProfileUpdate) => request<unknown>('/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile) })
 export const importCalendarLink = (url: string) => request<CalendarImport>('/calendar/ics/url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
 // The file itself is the request body (not a form upload).
 export const uploadCalendarFile = (file: File) => request<CalendarImport>('/calendar/ics/upload', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: file })
+// Demo controls (docs/api-contracts.md, /demo/*): the storm switch is shared; the test class is this browser's only.
+export type Scenario = 'live' | 'storm'
+export const getScenario = (signal?: AbortSignal) => request<{ scenario: Scenario }>('/weather', { signal })
+export const setScenario = (scenario: Scenario) => request<{ scenario: Scenario }>('/demo/scenario', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenario }) })
+export const addTestEvent = () => request<{ event_name: string; start_time: string; location: string }>('/demo/test-event', { method: 'POST' })
+export const removeTestEvent = () => request<{ removed: boolean }>('/demo/test-event', { method: 'DELETE' })
+export const refreshAlerts = () => request<CalendarAlert[]>('/alerts/refresh', { method: 'POST' })
