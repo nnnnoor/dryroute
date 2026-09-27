@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "fake_001|99309740_99334400_0",
+    "edge_id": "99309740_99334400_0",
+    "closure_id": "fake_001",
+    "source": "fake",
+    "kind": "roadwork",
+    "full_closure": false,
+    "direction": "Eastbound",
+    "start": "2026-09-01T00:00:00Z",
+    "end": null,
+    "name": "SW 8th St lane closure (demo)",
+    "description": "Fake closure for local development. Same fields as Mongo flood.closures.",
+    "lanes_affected": "1 of 3 lanes",
+    "agency": null,
+    "status": null
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "_comment": "Fake weekly class schedule (local Miami time). FakeCalendar turns it into Google Calendar-shaped events for any date range.",
+  "timezone": "America/New_York",
+  "classes": [
+    {"summary": "COP 3530 Data Structures", "location": "PC 213", "days": ["MO", "WE"], "start": "09:00", "end": "10:15"},
+    {"summary": "MAC 2312 Calculus II", "location": "GL 100", "days": ["TU", "TH"], "start": "11:00", "end": "12:15"},
+    {"summary": "ENC 1102 Writing", "location": "Online (Zoom)", "days": ["MO", "WE"], "start": "13:00", "end": "14:15"},
+    {"summary": "PHY 2048 Physics I", "location": "CP 145", "days": ["TU", "TH"], "start": "14:00", "end": "15:15"},
+    {"summary": "CDA 3102 Computer Architecture", "location": "CASE 241", "days": ["FR"], "start": "10:00", "end": "12:45"},
+    {"summary": "Hackathon team meeting", "location": "Graham Center (GC) 243", "days": ["SA", "SU"], "start": "16:00", "end": "17:00"}
+  ]
+}

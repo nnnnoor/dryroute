@@ -1,0 +1,347 @@
+{
+ "ACH5": {
+  "name": "Academic Health Center 5",
+  "lat": 25.75915,
+  "lon": -80.37132
+ },
+ "AHC1": {
+  "name": "Academic Health Center 1",
+  "lat": 25.757644,
+  "lon": -80.371389
+ },
+ "AHCD4": {
+  "name": "Academic Health Center 4",
+  "lat": 25.759305,
+  "lon": -80.372248
+ },
+ "AHCS2": {
+  "name": "Academic Health Center 2",
+  "lat": 25.758114,
+  "lon": -80.371273
+ },
+ "AHCS3": {
+  "name": "Academic Health Center 3",
+  "lat": 25.75876,
+  "lon": -80.371392
+ },
+ "AS": {
+  "name": "Artist Studio",
+  "lat": 25.752994,
+  "lon": -80.381288
+ },
+ "BT": {
+  "name": "Building Ten",
+  "lat": 25.758372,
+  "lon": -80.375537
+ },
+ "C01": {
+  "name": "Public Safety Tower",
+  "lat": 25.756124,
+  "lon": -80.376366
+ },
+ "CASE": {
+  "name": "Computing, Arts, Sciences and Education",
+  "lat": 25.758968,
+  "lon": -80.373901
+ },
+ "CBC": {
+  "name": "College of Business Complex",
+  "lat": 25.757977,
+  "lon": -80.377362
+ },
+ "CCLC": {
+  "name": "Children’s Creative Learning Center",
+  "lat": 25.756768,
+  "lon": -80.382
+ },
+ "CFES": {
+  "name": "Carlos Finlay Elementary School",
+  "lat": 25.759202,
+  "lon": -80.381492
+ },
+ "CP": {
+  "name": "Chemistry & Physics",
+  "lat": 25.758529,
+  "lon": -80.372016
+ },
+ "CU": {
+  "name": "Central Utilities",
+  "lat": 25.75792,
+  "lon": -80.37523
+ },
+ "DC": {
+  "name": "Duplicating Center",
+  "lat": 25.755953,
+  "lon": -80.376066
+ },
+ "DM": {
+  "name": "Deuxieme Maison",
+  "lat": 25.75617,
+  "lon": -80.374728
+ },
+ "EC": {
+  "name": "FIU Engineering Center",
+  "lat": 25.770005,
+  "lon": -80.367746
+ },
+ "EH": {
+  "name": "Everglades Residence Hall",
+  "lat": 25.753733,
+  "lon": -80.375542
+ },
+ "GC": {
+  "name": "Ernest R. Graham Center",
+  "lat": 25.756216,
+  "lon": -80.372697
+ },
+ "GH1": {
+  "name": "Greek Housing",
+  "lat": 25.753923,
+  "lon": -80.369716
+ },
+ "GH2": {
+  "name": "Greek Housing",
+  "lat": 25.753593,
+  "lon": -80.369946
+ },
+ "GL": {
+  "name": "Steven and Dorothea Green Library",
+  "lat": 25.757098,
+  "lon": -80.373753
+ },
+ "LC": {
+  "name": "Labor Center",
+  "lat": 25.756545,
+  "lon": -80.377149
+ },
+ "LVN": {
+  "name": "Lakeview Housing - North",
+  "lat": 25.754446,
+  "lon": -80.374535
+ },
+ "LVS": {
+  "name": "Lakeview Housing - South",
+  "lat": 25.753959,
+  "lon": -80.374522
+ },
+ "MARC": {
+  "name": "Management and Advanced Research Center",
+  "lat": 25.754479,
+  "lon": -80.373131
+ },
+ "NOAA": {
+  "name": "National Hurricane Center",
+  "lat": 25.754489,
+  "lon": -80.383621
+ },
+ "OE": {
+  "name": "Owa Ehan",
+  "lat": 25.757996,
+  "lon": -80.372873
+ },
+ "PC": {
+  "name": "Charles E. Perry Building / Primera Casa (PC)",
+  "lat": 25.755517,
+  "lon": -80.373785
+ },
+ "PCA": {
+  "name": "Paul L. Cejas School of Architecture",
+  "lat": 25.758909,
+  "lon": -80.37565
+ },
+ "PG4": {
+  "name": "Red Parking Garage",
+  "lat": 25.760177,
+  "lon": -80.373144
+ },
+ "PG5": {
+  "name": "Parking Garage 5",
+  "lat": 25.760092,
+  "lon": -80.371646
+ },
+ "PG6": {
+  "name": "Parking Garage 6",
+  "lat": 25.759986,
+  "lon": -80.374553
+ },
+ "PGB": {
+  "name": "Blue Parking Garage",
+  "lat": 25.753975,
+  "lon": -80.372079
+ },
+ "PGG": {
+  "name": "Gold Parking Garage",
+  "lat": 25.754742,
+  "lon": -80.372087
+ },
+ "PGP": {
+  "name": "Panther Parking Garage",
+  "lat": 25.758473,
+  "lon": -80.379818
+ },
+ "PH": {
+  "name": "Panther Residence Hall",
+  "lat": 25.754096,
+  "lon": -80.376701
+ },
+ "PPFAM": {
+  "name": "Patricia & Phillip Frost Art Museum",
+  "lat": 25.75383,
+  "lon": -80.373039
+ },
+ "RB": {
+  "name": "Ryder Business Building",
+  "lat": 25.757467,
+  "lon": -80.376125
+ },
+ "RC": {
+  "name": "Wellness and Recreation Center",
+  "lat": 25.755762,
+  "lon": -80.378044
+ },
+ "RDB": {
+  "name": "Rafael Diaz-Balart Hall",
+  "lat": 25.756766,
+  "lon": -80.37783
+ },
+ "RH": {
+  "name": "Ronald W. Reagan Presidential House",
+  "lat": 25.755497,
+  "lon": -80.369391
+ },
+ "SAAC": {
+  "name": "Student Athletic Academic Center",
+  "lat": 25.756051,
+  "lon": -80.382291
+ },
+ "SHC": {
+  "name": "University Student Health Center Complex",
+  "lat": 25.755966,
+  "lon": -80.376885
+ },
+ "SIPA": {
+  "name": "Steven J. Green School of International and Public Affairs",
+  "lat": 25.756507,
+  "lon": -80.37608
+ },
+ "TH": {
+  "name": "Tamiami Hall",
+  "lat": 25.75293,
+  "lon": -80.375757
+ },
+ "UT": {
+  "name": "University Towers",
+  "lat": 25.75487,
+  "lon": -80.376265
+ },
+ "VH": {
+  "name": "Viertes Haus",
+  "lat": 25.757997,
+  "lon": -80.374729
+ },
+ "W01": {
+  "name": "West 1",
+  "lat": 25.752715,
+  "lon": -80.382327
+ },
+ "W01C": {
+  "name": "Ceramics",
+  "lat": 25.75273,
+  "lon": -80.381503
+ },
+ "W05": {
+  "name": "West 5",
+  "lat": 25.755559,
+  "lon": -80.382099
+ },
+ "W06": {
+  "name": "West 6",
+  "lat": 25.755861,
+  "lon": -80.382107
+ },
+ "W07": {
+  "name": "West 7",
+  "lat": 25.756078,
+  "lon": -80.382567
+ },
+ "W10": {
+  "name": "W10-Support",
+  "lat": 25.756912,
+  "lon": -80.383906
+ },
+ "W10A": {
+  "name": "FIU Army ROTC- Southern Strike Batallion South",
+  "lat": 25.757263,
+  "lon": -80.383656
+ },
+ "W10B": {
+  "name": "W10B-Support",
+  "lat": 25.756893,
+  "lon": -80.383274
+ },
+ "W10C": {
+  "name": "W10C-Support",
+  "lat": 25.756888,
+  "lon": -80.382944
+ },
+ "W9": {
+  "name": "West 9",
+  "lat": 25.756823,
+  "lon": -80.382668
+ },
+ "WC": {
+  "name": "Wertheim Conservatory",
+  "lat": 25.759201,
+  "lon": -80.373154
+ },
+ "WPAC": {
+  "name": "Herbert and Nicole Wertheim Performing Arts Center",
+  "lat": 25.752488,
+  "lon": -80.372621
+ },
+ "WS/TC": {
+  "name": "Women’s Softball/Tennis Center",
+  "lat": 25.757484,
+  "lon": -80.381734
+ },
+ "ZEB": {
+  "name": "Sanford and Dolores Ziff Education Buildung (ZEB)",
+  "lat": 25.758821,
+  "lon": -80.376621
+ },
+ "AHC2": {
+  "name": "Academic Health Center 2",
+  "lat": 25.758114,
+  "lon": -80.371273
+ },
+ "AHC3": {
+  "name": "Academic Health Center 3",
+  "lat": 25.75876,
+  "lon": -80.371392
+ },
+ "AHC4": {
+  "name": "Academic Health Center 4",
+  "lat": 25.759305,
+  "lon": -80.372248
+ },
+ "AHC5": {
+  "name": "Academic Health Center 5",
+  "lat": 25.75915,
+  "lon": -80.37132
+ },
+ "PG1": {
+  "name": "Gold Parking Garage",
+  "lat": 25.754742,
+  "lon": -80.372087
+ },
+ "PG2": {
+  "name": "Blue Parking Garage",
+  "lat": 25.753975,
+  "lon": -80.372079
+ },
+ "PG3": {
+  "name": "Panther Parking Garage",
+  "lat": 25.758473,
+  "lon": -80.379818
+ }
+}

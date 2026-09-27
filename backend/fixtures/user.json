@@ -1,0 +1,7 @@
+{
+  "_comment": "The single demo user until Google login exists. Same fields the Mongo users collection will have.",
+  "user_id": "demo",
+  "home": {"label": "Brickell", "lat": 25.7617, "lon": -80.1918},
+  "preferred_parking_id": null,
+  "arrival_buffer_minutes": 10
+}

@@ -1,0 +1,28 @@
+# Pinned to the versions the backend is tested with. Install: pip install -r requirements.txt
+
+# Web server
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+pydantic-settings==2.15.0   # reads .env (pulls in python-dotenv)
+
+# Road graph, geodata, routing
+osmnx==2.1.1
+networkx==3.7
+geopandas==1.1.4
+shapely==2.1.2
+pandas==3.0.6
+numpy==2.5.3
+pyarrow==25.0.1             # reads segments.parquet
+
+# MongoDB Atlas (DATA_BACKEND=mongo)
+pymongo==4.18.2
+
+# TomTom traffic (and FastAPI's TestClient)
+httpx==0.28.1
+
+# Timezones (Windows has no built-in timezone database)
+tzdata==2026.4
+
+# Tests
+pytest==9.1.1
