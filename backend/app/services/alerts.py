@@ -9,6 +9,9 @@ Sources:
 Each alert has a stable id per situation, so a rebuild updates it instead of adding a duplicate, keeps
 "read" (unless it got more severe), and marks alerts whose situation is over as resolved. A source that
 failed this time resolves nothing: "couldn't check" is not "all clear".
+
+Alert text is plain language: no measurements (km, ft, minutes) and no model levels, only what to do and
+when. The details stay on the /routes screen.
 """
 import hashlib
 import time
@@ -20,6 +23,7 @@ from app.db.store import Store
 from app.integrations.live_conditions import LiveConditions
 from app.services.calendar_sync import CalendarService
 from app.services.parking import ParkingService
+from app.services.route_planner import worst_street
 from app.timeutil import iso_utc
 
 MIAMI = ZoneInfo("America/New_York")
@@ -105,29 +109,36 @@ class AlertService:
         alerts = []
 
         if trip["compromised"]:
-            parking_text = self.parking.message(trip["parking"]) if trip["parking"] else None
-            route_text = trip["recommendation"]["message"]
-            if parking_text:  # the parking sentence gets its own alert
-                route_text = route_text.replace(" " + parking_text, "")
+            action = trip["recommendation"]["action"]
             worst = max((s for s in trip["usual"]["risk_segments"] if s["risk_label"] == "high"),
                         key=lambda s: s["risk_score"], default=None)
+            street = worst_street(trip["usual"])
+            where = f" around {street}" if street else ""
+            advice = {"reroute": "Take the safer route.",
+                      "reroute_caution": "Take the safer route and drive carefully: it avoids most of the flooding, "
+                                         "not all of it.",
+                      "no_alternative": "There is no safer way around. Drive carefully, or leave later if you can."}
             alerts.append({**base, "key": f"route_flood|{event_id}", "type": "route_flood",
-                           "severity": "critical" if trip["recommendation"]["action"] == "no_alternative" else "warning",
-                           "title": f"High flood risk on your route to {name}",
-                           "message": f"{route_text} Leave by {leave}.",
+                           "severity": "critical" if action == "no_alternative" else "warning",
+                           "title": f"Flooding expected on your route to {name}",
+                           "message": f"Estimated flood levels are high on your usual route{where}. "
+                                      f"{advice[action]} Leave by {leave}.",
                            "segment_id": worst["segment_id"] if worst else None})
 
         if trip["parking"] and trip["parking"]["hazardous"]:
+            lot, alternatives = trip["parking"]["planned"]["name"], trip["parking"]["alternatives"]
+            instead = (f"Park at {alternatives[0]['name']} instead." if alternatives
+                       else "No nearby lot is clearly safer, so allow extra time.")
             alerts.append({**base, "key": f"parking_flood|{event_id}", "type": "parking_flood", "severity": "warning",
-                           "title": f"{trip['parking']['planned']['name']} may flood",
-                           "message": self.parking.message(trip["parking"]),
+                           "title": f"{lot} may flood",
+                           "message": f"Estimated flood levels are high at {lot}. {instead}",
                            "parking_id": trip["parking"]["planned"]["parking_id"]})
 
         delay = route.get("traffic_delay_minutes")
         if delay and delay >= self.settings.alert_traffic_delay_minutes:
             alerts.append({**base, "key": f"leave_earlier|{event_id}", "type": "leave_earlier", "severity": "info",
                            "title": f"Heavy traffic on the way to {name}",
-                           "message": f"Traffic adds about {round(delay)} min. Leave by {leave}."})
+                           "message": f"Traffic is heavier than usual. Leave by {leave}."})
 
         for c in route["closures"]:
             what = "closed" if c["full_closure"] else "under construction"
@@ -139,7 +150,8 @@ class AlertService:
     def _nws_alert(self, a: dict) -> dict:
         return {"key": f"nws|{a['id']}", "source": "nws", "type": "weather_warning",
                 "severity": NWS_SEVERITY.get(a["severity"], "info"),
-                "title": a["event"], "message": a.get("headline") or f"{a['event']} for {a.get('area')}.",
+                "title": a["event"],  # the official name, e.g. "Flood Warning"; its headline is all dates and times
+                "message": "The National Weather Service has issued this for your area. Avoid low-lying and flooded roads.",
                 "event_id": None, "segment_id": None, "parking_id": None, "expires_at": a.get("ends")}
 
     def _tide_alert(self, t: dict, at: datetime) -> dict | None:
@@ -148,9 +160,8 @@ class AlertService:
         return {"key": f"tide|{at.astimezone(MIAMI):%Y-%m-%d}", "source": "tide", "type": "tide",
                 "severity": "critical" if t["above_moderate"] else "warning",
                 "title": "High tide in Biscayne Bay",
-                "message": (f"Water at Virginia Key is expected to reach {t['expected_peak_ft']:.1f} ft, above the "
-                            f"{'moderate' if t['above_moderate'] else 'minor'} flood level. Low bayfront streets "
-                            f"(Brickell, near the Miami River) may flood even without rain."),
+                "message": ("Estimated water levels in Biscayne Bay are high. Low-lying bayfront streets "
+                            "(Brickell, near the Miami River) may flood even without rain."),
                 "event_id": None, "segment_id": None, "parking_id": None, "expires_at": None}
 
     def _save(self, user_id: str, candidates: list[dict], checked: set[str], now: datetime) -> None:
